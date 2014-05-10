@@ -1,0 +1,39 @@
+object InsertDialogForm: TInsertDialogForm
+  Left = 373
+  Height = 381
+  Top = 416
+  Width = 323
+  Caption = 'InsertDialogForm'
+  ClientHeight = 381
+  ClientWidth = 323
+  OnCreate = FormCreate
+  LCLVersion = '1.0.12.0'
+  object ApplyButton: TButton
+    Left = 112
+    Height = 27
+    Top = 349
+    Width = 96
+    Anchors = [akLeft, akBottom]
+    Caption = 'Применить'
+    TabOrder = 0
+  end
+  object OKButton: TButton
+    Left = 8
+    Height = 27
+    Top = 349
+    Width = 96
+    Anchors = [akLeft, akBottom]
+    Caption = 'ОК'
+    TabOrder = 1
+  end
+  object CancelButton: TButton
+    Left = 216
+    Height = 27
+    Top = 349
+    Width = 96
+    Anchors = [akLeft, akBottom]
+    Caption = 'Отмена'
+    OnClick = CancelButtonClick
+    TabOrder = 2
+  end
+end

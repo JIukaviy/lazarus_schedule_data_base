@@ -1,0 +1,60 @@
+object InsertDialogForm: TInsertDialogForm
+  Left = 715
+  Height = 381
+  Top = 231
+  Width = 323
+  Caption = 'InsertDialogForm'
+  ClientHeight = 381
+  ClientWidth = 323
+  LCLVersion = '1.0.12.0'
+  object ApplyButton: TButton
+    Left = 112
+    Height = 27
+    Top = 349
+    Width = 96
+    Anchors = [akLeft, akBottom]
+    Caption = 'Применить'
+    TabOrder = 0
+  end
+  object OKButton: TButton
+    Left = 8
+    Height = 27
+    Top = 349
+    Width = 96
+    Anchors = [akLeft, akBottom]
+    Caption = 'ОК'
+    TabOrder = 1
+  end
+  object CancelButton: TButton
+    Left = 216
+    Height = 27
+    Top = 349
+    Width = 96
+    Anchors = [akLeft, akBottom]
+    Caption = 'Отмена'
+    TabOrder = 2
+  end
+  object DBLookupComboBox1: TDBLookupComboBox
+    Left = 16
+    Height = 23
+    Top = 272
+    Width = 128
+    KeyField = 'Subject_id'
+    ListField = 'Subject_id'
+    ListFieldIndex = 0
+    ListSource = Datasource
+    LookupCache = False
+    TabOrder = 3
+  end
+  object SQLQuery: TSQLQuery
+    FieldDefs = <>
+    Params = <>
+    left = 8
+    top = 312
+  end
+  object Datasource: TDatasource
+    DataSet = SQLQuery
+    left = 48
+    top = 312
+  end
+end

@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<CONFIG>
+  <Compiler Value="C:\Langs\lazarus\fpc\2.6.2\bin\i386-win32\fpc.exe" Date="1125670419"/>
+  <Params Value=" -MObjFPC -Scghi -O1 -g -gl -vewnhi -FuC:\Langs\lazarus\packager\units\i386-win32 &quot;-FuF:\Data Base\&quot; &quot;-FUF:\Data Base\lib\i386-win32\&quot; -l expandpanelpcg.pas"/>
+</CONFIG>

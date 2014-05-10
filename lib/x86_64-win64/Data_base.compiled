@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<CONFIG>
+  <Compiler Value="C:\lazarus\fpc\2.6.2\bin\x86_64-win64\fpc.exe" Date="1125674370"/>
+  <Params Value=" -MObjFPC -Scghi -O1 -g -gl -WG -vewnhi &quot;-FiC:\Users\JIukaviy\Dropbox\Lazarus Projects\Data Base\lib\x86_64-win64&quot; -FuC:\lazarus\components\sqldb\lib\x86_64-win64\win32 -FuC:\lazarus\components\synedit\units\x86_64-win64\win32 -FuC:\lazarus\ideintf\units\x86_64-win64\win32 &quot;-FuC:\Users\JIukaviy\Dropbox\Lazarus Projects\Data Base\ExpandPanel\lib\x86_64-win64&quot; -FuC:\lazarus\lcl\units\x86_64-win64\win32 -FuC:\lazarus\lcl\units\x86_64-win64 -FuC:\lazarus\components\lazutils\lib\x86_64-win64 -FuC:\lazarus\packager\units\x86_64-win64 &quot;-FuC:\Users\JIukaviy\Dropbox\Lazarus Projects\Data Base\&quot; &quot;-FUC:\Users\JIukaviy\Dropbox\Lazarus Projects\Data Base\lib\x86_64-win64\&quot; -l -dLCL -dLCLwin32 Data_base.lpr"/>
+</CONFIG>
