@@ -5,173 +5,291 @@ unit USQLQueryCreator;
 interface
 
 uses
-  Classes, SysUtils, umetadata, UFilters, sqldb, db, DBGrids, Dialogs;
+  Classes, SysUtils, umetadata, UFilters, sqldb, db, DBGrids, Dialogs, UDBData,
+  types, Math, Clipbrd;
 
 type
 
   { TSQLQueryCreator }
 
-  TSortOrder = record
-    ColumnIndex: Integer;
-    SortById: boolean;
-  end;
   TSortOrders = array of TSortOrder;
 
-  TSQLQueryCreator = object
+  TSQLQueryCreator = class
   private
     FTable: TTableInfo;
+    FColsToShow: TColumnInfos;
+    FFilters: TFilterInfos;
     FFilterList: TFilterList;
-    FSortOrders: TSortOrders;
+    FOrderByCols: TColumnInfos;
     FDesc: boolean;
-  public
+    FSQLQuery: TSQLQuery;
+    FDataSource: TDataSource;
     function CreateQuery(): String;
-    procedure SendQuery(SQLQuery: TSQLQuery);
+    procedure ApplyFilterParams(Filters: TFilterInfos);
+    procedure SetUpdateSQLQuery();
+    procedure SetInsertSQLQuery();
+    procedure SetDeleteSQLQuery();
+  public
+    constructor Create(aTable: TTableInfo);
+    destructor Destroy(); override;
+    procedure SelectCols(aColSelType: TColSelType);
+    procedure SendQuery();
+    procedure FilterById(aID: Integer);
+    procedure SetOrderBy(const aColumnIDs: array of Integer);
+    procedure SetOrderBy(const aColumns: array of TColumnInfo);
+    procedure SetOrderBy(const aColumns: TColumnInfos);
     procedure SetCaptions(DBGrid: TDBGrid);
-    procedure SetOrderBy(const FieldIDs: array of Integer);
-    procedure SetOrderBy(const SortOrders: TSortOrders);
-    procedure ShowItems(SQLQuery: TSQLQuery; DBGrid: TDBGrid);
-    procedure DeleteRecordByID(aID: Integer; SQLQuery: TSQLQuery);
+    procedure ShowItems(DBGrid: TDBGrid);
+    procedure AddFilter(aFilter: TFilterInfo);
+    procedure ClearFilters();
+    function GetNextID: Integer;
+    function GetCurrID: Integer;
     property Table: TTableInfo read FTable write FTable;
     property FilterList: TFilterList read FFilterList write FFilterList;
     property OrderDesc: boolean read FDesc write FDesc;
+    property DataSource: TDataSource read FDataSource;
+    property SQLQuery: TSQLQuery read FSQLQuery;
   end;
 
 implementation
 
 { TSQLQueryCreator }
 
-function TSQLQueryCreator.CreateQuery: String;
+constructor TSQLQueryCreator.Create(aTable: TTableInfo);
 var
   i: Integer;
-  FilterInfos: TFilterInfos;
-  function GetFullColName(i, j : Integer): String;
+begin
+  FTable := aTable;
+  FFilterList := nil;
+  FSQLQuery := TSQLQuery.Create(nil);
+  FDataSource := TDataSource.Create(nil);
+  SetUpdateSQLQuery();
+  SetInsertSQLQuery();
+  SetDeleteSQLQuery();
+  InitConnection(FDataSource, FSQLQuery);
+end;
+
+destructor TSQLQueryCreator.Destroy;
+begin
+  inherited;
+  FreeAndNil(FSQLQuery);
+end;
+
+function TSQLQueryCreator.CreateQuery(): String;
+var
+  i: Integer;
+ { function GetFullColName(i, j : Integer): String;
   begin
     if FTable.Columns[i].IsReference then
       Result := FTable.Columns[j].ReferenceTable + '.' +  FTable.Columns[j].ReferenceName
     else
       Result := FTable.Name + '.' + FTable.Columns[j].Name + ' ';
-  end;
+  end;}
 
 begin
-  with FTable do begin
-  //
-  Result := Format('select %s.ID, ', [Name]);
-  for i := 0 to High(Columns) do begin
-    Result += Format('%s as %s', [GetFullColName(i, i), GetColSqlName(Columns[i])]);
-    if Columns[i].IsReference then
-      Result += Format(', %s.ID as %s', [Columns[i].ReferenceTable, Columns[i].Name]);
-    if i < High(Columns) then Result += ', ';
+  if Length(FColsToShow) = 0 then begin
+    ShowMessage('Не указаны колонки для выборки');
+    Exit();
   end;
-  Result += ' from ' + Name;
-  for i := 0 to High(Columns) do begin
-    if not Columns[i].IsReference then continue;
-    Result += Format(' inner join %s on %s.%s = %s.ID ', [Columns[i].ReferenceTable,
-                 NAme, Columns[i].Name, Columns[i].ReferenceTable]);
+
+  //Select
+
+  Result := Format('select ', [Ftable.Name]);
+  for i := 0 to High(FColsToShow) do begin
+    Result += Format('%s as %s', [FColsToShow[i].OwnName, FColsToShow[i].AliasName]);
+    if i < High(FColsToShow) then Result += ', ';
   end;
+
+  //From
+
+  Result += ' from ' + Ftable.Name;
+  for i := 0 to High(FColsToShow) do begin
+    if FColsToShow[i].FieldType <> ftReference then continue;
+    Result += Format(' inner join %s on %s = %s ', [FColsToShow[i].RefTableName,
+                 FColsToShow[i].OwnName, FColsToShow[i].RefKeyCol.OwnName]);
+  end;
+
   //Set filters
-  if FFilterList.Count > 0 then begin
+
+  if Length(FFilters) > 0 then begin
     Result += ' where ';
-    FilterInfos := FFilterList.GetFilterInfos();
-    for i := 0 to High(FilterInfos) do begin
-      Result += Format(' %s %s :%s ', [FilterInfos[i].FieldName, FilterInfos[i].Condition,
-                         FilterInfos[i].ParamName]);
-      if i < High(FilterInfos) then Result += ' and ';
+    for i := 0 to High(FFilters) do begin
+      Result += Format(' %s %s :%s%d ', [FFilters[i].Column.OwnName(), FFilters[i].Condition,
+                         FFilters[i].Column.AliasName, i]);
+      if i < High(FFilters) then Result += ' and ';
     end;
   end;
+
   //Set order by
-  if Length(FSortOrders) > 0 then begin
+
+  if Length(FOrderByCols) > 0 then begin
     Result += ' order by ';
-    for i := 0 to High(FSortOrders) do begin
-      if FSortOrders[i].SortById then
-        Result += Columns[FSortOrders[i].ColumnIndex].Name
-      else
-        Result += GetFullColName(i, FSortOrders[i].ColumnIndex);
-      if i < High(FSortOrders) then Result += ', ';
+    for i := 0 to High(FOrderByCols) do begin
+      Result += FOrderByCols[i].AliasName;
+      if i < High(FOrderByCols) then Result += ', ';
     end;
     if FDesc then Result += ' desc ';
   end;
-  end;
+  Clipboard.AsText := Result;
   //ShowMessage(Result);
 end;
 
-procedure TSQLQueryCreator.SendQuery(SQLQuery: TSQLQuery);
+procedure TSQLQueryCreator.ApplyFilterParams(Filters: TFilterInfos);
 var
   i: Integer;
-  Filters: TFilterInfos;
 begin
-  Filters := FFilterList.GetFilterInfos();
-  SQLQuery.Close();
   SQLQuery.Params.Clear();
   for i := 0 to High(Filters) do
     with Filters[i] do
-      SQLQuery.Params.CreateParam(FieldType, ParamName, ptInput).Text := Value;
-  SQLQuery.SQL.Text := CreateQuery();
-  SQLQuery.Open();
+      SQLQuery.Params.CreateParam(Column.FieldType, Column.AliasName + IntToStr(i), ptInput).Text := Value;
+end;
+
+procedure TSQLQueryCreator.SetUpdateSQLQuery;
+var
+  i: Integer;
+  EditableCols: TColumnInfos;
+begin
+  EditableCols := FTable.GetCols(cstOwn, [coEditable]);
+
+  with FSQLQuery.UpdateSQL do begin
+    Append(Format('update %s set', [FTable.Name]));
+    for i := 0 to High(EditableCols) do begin
+      Append(Format('%s = :%s', [EditableCols[i].Name, EditableCols[i].AliasName()]));
+      if i < High(EditableCols) then Add(',');
+    end;
+    Append(Format('where %s = :OLD_%s', [FTable.GetPrimaryCol.Name, FTable.GetPrimaryCol.AliasName()]));
+  end;
+end;
+
+procedure TSQLQueryCreator.SetInsertSQLQuery;
+var
+  i: Integer;
+begin
+  with FSQLQuery.InsertSQL do begin
+    with FTable do begin
+      Append(Format('insert into %s (', [Name]));
+      for i := 0 to High(Columns) do begin
+        Append(Format('%s', [Columns[i].Name]));
+        if i < High(Columns) then Add(',');
+      end;
+      Append(') values (');
+      for i := 0 to High(Columns) do begin
+        if i = COL_ID then
+          Append(Format('next value for %s', [GetGeneratorName()]))
+        else
+          Append(Format(':%s', [Columns[i].AliasName()]));
+        if i < High(Columns) then Add(',')
+      end;
+    end;
+    Append(')');
+  end;
+end;
+
+procedure TSQLQueryCreator.SetDeleteSQLQuery;
+begin
+  with FSQLQuery.DeleteSQL, Table.GetPrimaryCol do
+    Append(Format('delete from %s where %s = :%s', [Table.Name, Name, AliasName]));
+end;
+
+procedure TSQLQueryCreator.SendQuery();
+begin
+  FSQLQuery.Close();
+  if FFilterList <> nil then
+    FFilters := FFilterList.GetFilterInfos();
+  ApplyFilterParams(FFilters);
+  FSQLQuery.SQL.Text := CreateQuery();
+  FSQLQuery.Open();
+end;
+
+procedure TSQLQueryCreator.SelectCols(aColSelType: TColSelType);
+begin
+  FColsToShow := FTable.GetCols(aColSelType);
+end;
+
+procedure TSQLQueryCreator.FilterById(aID: Integer);
+begin
+  ClearFilters();
+  AddFilter(CreateIdFilter(FTable, aID));
 end;
 
 procedure TSQLQueryCreator.SetCaptions(DBGrid: TDBGrid);
 var
-  i, j: Integer;
-begin
-  DBGrid.Columns[0].Visible := false;
-  j := 0; i := 0;
-  while i < DBGrid.Columns.Count do begin
-    if (j <= High(Table.Columns)) and (LowerCase(GetColSqlName(Table.Columns[j])) = LowerCase(DBGrid.Columns[i].Title.Caption)) then begin
-      DBGrid.Columns[i].Title.Caption := Table.Columns[j].Caption;
-      DBGrid.Columns[i].Width := Table.Columns[j].Size;
-      inc(j); inc(i);
-    end else begin
-      DBGrid.Columns[i].Visible := false;
-      inc(i);
-    end;
-  end;
-end;
-
-procedure TSQLQueryCreator.SetOrderBy(const FieldIDs: array of Integer);
-var
   i: Integer;
-  OrderBy: TSortOrders;
 begin
-  if (Length(FieldIDs) and 1) > 0 then Exit;
-  if (Length(FieldIDs) div 2) > Length(FTable.Columns) then Exit;
-  i := 0;
-  while i < High(FieldIDs) do begin
-    if FieldIDs[i] > High(FTable.Columns) then Exit;
-    i += 2;
+  for i := 0 to DBGrid.Columns.Count -1 do begin
+    with FColsToShow[i] do
+      if coVisible in Options then begin
+        DBGrid.Columns[i].Title.Caption := Caption;
+        DBGrid.Columns[i].Width := Size;
+      end else
+        DBGrid.Columns[i].Visible := false;
   end;
-  SetLength(OrderBy, Length(FieldIDs) div 2);
-  i := 0;
-  while i < High(FieldIDs) do begin
-    OrderBy[i div 2].ColumnIndex := FieldIDs[i];
-    OrderBy[i div 2].SortById := FieldIDs[i+1] > 0;
-    i += 2;
-  end;
-  SetOrderBy(OrderBy);
 end;
 
-procedure TSQLQueryCreator.SetOrderBy(const SortOrders: TSortOrders);
+procedure TSQLQueryCreator.SetOrderBy(const aColumnIDs: array of Integer);
 var
   i: Integer;
 begin
-  for i := 0 to High(SortOrders) do begin
-    if (SortOrders[i].ColumnIndex > Table.ColCount - 1) or
-       (SortOrders[i].ColumnIndex < 0) then
-         Exit;
-  end;
-  FSortOrders := SortOrders;
+  if not InRange(High(aColumnIDs), 0, High(FColsToShow)) then Exit;
+
+  for i := 0 to High(aColumnIDs) do
+    if not InRange(aColumnIDs[i], 0, High(FColsToShow)) then Exit;
+
+  SetLength(FOrderByCols, Length(aColumnIDs));
+  for i := 0 to High(aColumnIDs) do
+    FOrderByCols[i] := FColsToShow[aColumnIDs[i]];
 end;
 
-procedure TSQLQueryCreator.ShowItems(SQLQuery: TSQLQuery; DBGrid: TDBGrid);
+procedure TSQLQueryCreator.SetOrderBy(const aColumns: array of TColumnInfo);
+var
+  i: Integer;
+  Cols: TColumnInfos;
 begin
-  SendQuery(SQLQuery);
+  SetLength(Cols, Length(aColumns));
+  for i := 0 to High(aColumns) do
+    Cols[i] := aColumns[i];
+  SetOrderBy(cols);
+end;
+
+procedure TSQLQueryCreator.SetOrderBy(const aColumns: TColumnInfos);
+var
+  i: Integer;
+begin
+  if not InRange(High(aColumns), 0, High(FColsToShow)) then Exit;
+
+  FOrderByCols := aColumns;
+end;
+
+procedure TSQLQueryCreator.ShowItems(DBGrid: TDBGrid);
+begin
+  SelectCols(cstAll);
+  SendQuery();
   SetCaptions(DBGrid);
 end;
 
-procedure TSQLQueryCreator.DeleteRecordByID(aID: Integer; SQLQuery: TSQLQuery);
+procedure TSQLQueryCreator.AddFilter(aFilter: TFilterInfo);
 begin
-  SQLQuery.Close();
-  SQLQuery.SQL.Text := Format('delete from %s where ID = %d', [Table.Name, aID]);
-  SQLQuery.ExecSQL();
+  SetLength(FFilters, Length(FFilters) + 1);
+  FFilters[High(FFilters)] := aFilter;
+end;
+
+procedure TSQLQueryCreator.ClearFilters;
+begin
+  FFilters := nil;
+end;
+
+function TSQLQueryCreator.GetNextID: Integer;
+begin
+  FSQLQuery.Close();
+  FSQLQuery.SQL.Text := Format('SELECT NEXT VALUE FOR %s FROM RDB$DATABASE', [FTable.GetGeneratorName()]);
+  FSQLQuery.Open();
+  Result := SQLQuery.FieldByName('GEN_ID').AsInteger;
+  FSQLQuery.Close();
+end;
+
+function TSQLQueryCreator.GetCurrID: Integer;
+begin
+  Result := FSQLQuery.FieldByName(FTable.GetPrimaryCol.AliasName()).AsInteger
 end;
 
 end.

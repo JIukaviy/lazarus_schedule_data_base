@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs, DbCtrls,
-  StdCtrls, ExtCtrls, umetadata, ufieldeditor, db, sqldb, UDBData;
+  StdCtrls, ExtCtrls, umetadata, ufieldeditor, db, sqldb, UDBData, USQLQueryCreator;
 
 type
 
@@ -14,24 +14,24 @@ type
 
   TEditForm = class(TForm)
     ApplyButton: TButton;
-    Datasource: TDatasource;
     OKButton: TButton;
     CancelButton: TButton;
-    SQLQuery: TSQLQuery;
     procedure ApplyButtonClick(Sender: TObject);
+    procedure AddButtonClick(Sender: TObject);
     procedure CancelButtonClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
-    procedure FormCreate(Sender: TObject);
     procedure OKButtonClick(Sender: TObject);
   private
+    Query: TSQLQueryCreator;
     Table: TTableInfo;
     FieldEditors: array of TFieldEditor;
     Columns: TColumnInfos;
     IsEdit: boolean;
     ID: Integer;
     FOnApply: TNotifyEvent;
-    function GetNextId(aGenName: String): Integer;
-    procedure InsertIntoTable();
+    function GetNextID(): Integer;
+    procedure InitAddForm();
+    procedure InitEditForm(aID: Integer);
     procedure SetOnApplyEvent(aOnApply: TNotifyEvent);
     procedure OnFieldValChange(Sender: TObject);
   public
@@ -46,8 +46,8 @@ type
   TEditFormList = object
   private
     FEditForms: array of TEditForm;
-    procedure DeleteFromList(aID: Integer);
-    function FindForm(aID: Integer): Integer;
+    procedure DeleteFromList(aID, aTableID: Integer);
+    function FindForm(aID, aTableID: Integer): Integer;
   public
     procedure ShowEditForm(aOwner: TWinControl; aTableinfo: TTableInfo;
                 aID: Integer; aOnApply: TNotifyEvent);
@@ -60,33 +60,33 @@ implementation
 
 { TEditFormList }
 
-procedure TEditFormList.DeleteFromList(aID: Integer);
+procedure TEditFormList.DeleteFromList(aID, aTableID: Integer);
 var
   i, FormIndex: Integer;
 begin
-  FormIndex := FindForm(aID);
+  FormIndex := FindForm(aID, aTableID);
   if FormIndex < 0 then Exit;
   for i := FormIndex to High(FEditForms) - 1 do
     FEditForms[i] := FEditForms[i+1];
   SetLength(FEditForms, Length(FEditForms) - 1);
 end;
 
-function TEditFormList.FindForm(aID: Integer): Integer;
+function TEditFormList.FindForm(aID, aTableID: Integer): Integer;
 var
   i: Integer;
 begin
   Result := -1;
   for i := 0 to High(FEditForms) do
-    if FEditForms[i].ID = aID then
+    if (FEditForms[i].ID = aID) and (FEditForms[i].Table.ID = aTableID) then
       Exit(i);
 end;
 
 procedure TEditFormList.ShowEditForm(aOwner: TWinControl;
   aTableinfo: TTableInfo; aID: Integer; aOnApply: TNotifyEvent);
 var
-  i, FormIndex: Integer;
+  FormIndex: Integer;
 begin
-  FormIndex := FindForm(aID);
+  FormIndex := FindForm(aID, aTableInfo.ID);
   if FormIndex >= 0 then
     FEditForms[FormIndex].Show()
   else begin
@@ -108,13 +108,16 @@ end;
 
 procedure TEditForm.ApplyButtonClick(Sender: TObject);
 begin
-  SQLQuery.ApplyUpdates();
-  //MainForm.SomethingChanged := true;
-  if isEdit then
-    ApplyButton.Enabled := false
-  else
-    Self.Close();
+  Query.SQLQuery.ApplyUpdates();
+  ApplyButton.Enabled := false;
   if FOnApply <> nil then FOnApply(Sender);
+end;
+
+procedure TEditForm.AddButtonClick(Sender: TObject);
+begin
+  Query.SQLQuery.ApplyUpdates();
+  if FOnApply <> nil then FOnApply(Sender);
+  Self.Close();
 end;
 
 procedure TEditForm.CancelButtonClick(Sender: TObject);
@@ -123,16 +126,9 @@ begin
 end;
 
 procedure TEditForm.FormClose(Sender: TObject; var CloseAction: TCloseAction);
-var
-  i: Integer;
 begin
   CloseAction := caFree;
-  EditForms.DeleteFromList(ID);
-end;
-
-procedure TEditForm.FormCreate(Sender: TObject);
-begin
-
+  EditForms.DeleteFromList(ID, Table.ID);
 end;
 
 procedure TEditForm.OKButtonClick(Sender: TObject);
@@ -141,61 +137,61 @@ begin
   Self.Close();
 end;
 
+function TEditForm.GetNextID: Integer;
+var
+  LookUpQuery: TSQLQueryCreator;
+begin
+  LookUpQuery := TSQLQueryCreator.Create(Table);
+  Result := LookUpQuery.GetNextID;
+  FreeAndNil(LookUpQuery);
+end;
+
+procedure TEditForm.InitAddForm;
+begin
+  OKButton.Visible := false;
+  ApplyButton.Caption := 'Добавить';
+  ApplyButton.OnClick := @AddButtonClick;
+  Query.SQLQuery.UsePrimaryKeyAsKey := true;
+  Query.SelectCols(cstOwn);
+  Query.SendQuery();
+  Query.SQLQuery.Append();
+  Query.SQLQuery.Fields[COL_ID].Required := false;
+  isEdit := false;
+end;
+
+procedure TEditForm.InitEditForm(aID: Integer);
+begin
+  ApplyButton.OnClick := @ApplyButtonClick;
+  Query.SelectCols(cstOwn);
+  Query.FilterById(aID);
+  Query.SendQuery();
+end;
+
 constructor TEditForm.Create(aOwner: TWinControl; aTableInfo: TTableInfo; aID: Integer);
 var
   i: Integer;
-  //NullValues: array of const;
 begin
   inherited Create(aOwner);
-  isEdit := true;
-  Table := aTableInfo;
   ID := aID;
+  Table := aTableInfo;
   FOnApply := nil;
-  Columns := Table.Columns;
-  InitConnection(Datasource, SQLQuery);
+  Columns := Table.GetCols(cstOwn, [coEditable]);
+  Query := TSQLQueryCreator.Create(aTableInfo);
 
-  if ID = 0 then
-    ID := GetNextId(Table.GetGeneratorName);
-
-  SQLQuery.SQL.Text := Format('select * from %s where ID = %d', [Table.Name, aID]);
-  SQLQUery.UsePrimaryKeyAsKey := true;
-  SQLQuery.Open();
-
-  if aID = 0 then begin
-    OKButton.Visible := false;
-    ApplyButton.Caption := 'Добавить';
-    SQLQuery.Append();
-    SQLQuery.FieldByName('ID').AsInteger := ID;
-    isEdit := false;
-  end;
+  if aID = 0 then
+    InitAddForm()
+  else
+    InitEditForm(aID);
 
   For i := 0 to High(Columns) do begin
     SetLength(FieldEditors, Length(FieldEditors) + 1);
-    FieldEditors[High(FieldEditors)] := TFieldEditor.Create(Self, Columns[i], DataSource);
+    FieldEditors[High(FieldEditors)] := TFieldEditor.Create(Self, Columns[i], Query);
     with FieldEditors[High(FieldEditors)] do begin
       Parent := Self;
       Align := alTop;
       OnChange := @OnFieldValChange;
     end;
   end;
-end;
-
-procedure TEditForm.InsertIntoTable();
-var
-  i: Integer;
-  ParamName: String;
-begin
-  SQLQuery.Close();
-  SQLQuery.SQL.Text := Format('insert into %s values(next value for %s, ', [Table.Name, Table.GetGeneratorName]);
-  for i := 0 to High(Columns) do begin
-    ParamName := Format('param%d', [i]);
-    SQLQuery.SQL.Add(Format(':%s, ', [ParamName]));
-    SQLQuery.Params.CreateParam(Columns[i].FieldType, ParamName, ptInput).Text := FieldEditors[i].Value;
-    if i < High(Columns) then SQLQuery.SQL.Add(', ');
-  end;
-  SQLQuery.SQL.Add(');');
-  ShowMessage(SQLQuery.SQL.Text);
-  SQLQuery.ExecSQL;
 end;
 
 function TEditForm.CheckFields(): boolean;
@@ -210,15 +206,6 @@ end;
 procedure TEditForm.SetOnApplyEvent(aOnApply: TNotifyEvent);
 begin
   FOnApply := aOnApply;
-end;
-
-function TEditForm.GetNextId(aGenName: String): Integer;
-begin
-  SQLQuery.Close();
-  SQLQuery.SQL.Text := Format('SELECT NEXT VALUE FOR %s FROM RDB$DATABASE', [aGenName]);
-  SQLQuery.Open();
-  Result := SQLQuery.FieldByName('GEN_ID').AsInteger;
-  SQLQuery.Close();
 end;
 
 destructor TEditForm.Destroy();

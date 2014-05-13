@@ -5,9 +5,13 @@ unit UFieldEditor;
 interface
 
 uses
-  Classes, SysUtils, umetadata, Controls, StdCtrls, Graphics, ExtCtrls, sqldb, db, DBCtrls, UDBData, DIalogs;
+  Classes, SysUtils, umetadata, Controls, StdCtrls, Graphics, ExtCtrls, sqldb,
+  db, DBCtrls, UDBData, DIalogs, USQLQueryCreator;
 
 type
+
+  { TFieldEditor }
+
   TFieldEditor = class
   private
     FPanel: TPanel;
@@ -15,9 +19,8 @@ type
     FColumn: TColumnInfo;
     FFieldNameLabel: TLabel;
     FEdit: TWinControl;
-    FDataSource: TDataSource;
-    FListSource: TDataSource;
-    FLookupQuery: TSQLQuery;
+    FLookupQuery: TSQLQueryCreator;
+    FQuery: TSQLQueryCreator;
     FAlign: TAlign;
     FOnChange: TNotifyEvent;
     procedure SetParent(aParent: TWinControl);
@@ -27,7 +30,7 @@ type
   public
     constructor Create(aOwner: TWinControl;
                        aColumn: TColumnInfo;
-                       aDataSource: TDataSource);
+                       aQuery: TSQLQueryCreator);
     destructor Destroy(); override;
     function CheckField(): boolean;
     property Parent: TWinControl read FParent write SetParent;
@@ -40,54 +43,52 @@ implementation
 
 constructor TFieldEditor.Create(aOwner: TWinControl;
                                 aColumn: TColumnInfo;
-                                aDataSource: TDataSource);
+                                aQuery: TSQLQueryCreator);
 begin
   inherited Create();
   FColumn := aColumn;
-  FDataSource := aDataSource;
+  FQuery := aQuery;
 
   FPanel := TPanel.Create(aOwner);
+  with FPanel do begin
+    Height := 25;
+    BorderSpacing.Around := 1;
+  end;
 
   FFieldNameLabel := TLabel.Create(FPanel);
   with FFieldNameLabel do begin
     Parent := FPanel;
     Layout := tlCenter;
-    Caption := FColumn.Caption;
+    Caption := aColumn.Caption;
     AutoSize := false;
     Align := alLeft;
     Width := 120;
     BorderSpacing.Left := 3;
   end;
 
-  {case aColumn.ColumnInfo.FieldType of
-    ftString: FEdit := TEdit.Create(FPanel);
-  end;}
-
-  if aColumn.IsReference then begin
+  if aColumn.FieldType = ftReference then begin
     FEdit := TDBLookupComboBox.Create(aOwner);
     with TDBLookupComboBox(FEdit) do begin
-      FLookupQuery := TSQLQuery.Create(aOwner);
-      FListSource := TDataSource.Create(aOwner);
-      InitConnection(FListSource, FLookupQuery);
+      FLookupQuery := TSQLQueryCreator.Create(TTableInfo(aColumn.RefTable));
 
-      FLookupQuery.SQL.Text := Format('select ID, %s from %s',
-                            [aColumn.ReferenceName, aColumn.ReferenceTable]);
-      FLookupQuery.Open();
+      FLookupQuery.SelectCols(cstAll);
+      FLookupQuery.SendQuery();
 
-      Style := csDropDownList;
+      ListField := aColumn.RefCols[0].AliasName;
+      KeyField := TTableInfo(aColumn.RefTable).GetPrimaryCol.AliasName;
+      DataField := aColumn.AliasName;
 
-      ListField := aColumn.ReferenceName;
-      KeyField := 'ID';
-      DataField := aColumn.Name;
-      DataSource := FDataSource;
-      ListSource := FListSource;
+      DataSource := FQuery.DataSource;
+      ListSource := FLookupQuery.DataSource;
+
       OnChange := FOnChange;
+      Style := csDropDownList;
     end;
   end else begin
     FEdit := TDBEdit.Create(aOwner);
     with TDBEdit(FEdit) do begin
-      DataSource := aDataSource;
-      DataField := aColumn.Name;
+      DataSource := FQuery.DataSource;
+      DataField := aColumn.AliasName();
       OnChange := FOnChange;
     end;
   end;
@@ -97,17 +98,12 @@ begin
     Align := alRight;
     AnchorToNeighbour(akLeft, 5, FFieldNameLabel);
   end;
-
-   with FPanel do begin
-    Height := 25;
-    BorderSpacing.Around := 1;
-  end;
 end;
 
 function TFieldEditor.CheckField(): boolean;
 begin
   if FEdit <> nil then
-    if FColumn.IsReference then
+    if FColumn.FieldType = ftReference then
       Result := TDBLookupComboBox(FEdit).ListFieldIndex > 0
     else
       Result := Trim(TDBEdit(FEdit).Text) <> '';
@@ -130,7 +126,7 @@ procedure TFieldEditor.SetOnChangeEvent(aOnChange: TNotifyEvent);
 begin
   FOnChange := aOnChange;
   if FEdit <> nil then
-    if FColumn.IsReference then
+    if FColumn.FieldType = ftReference then
       TDBLookupComboBox(FEdit).OnChange := FOnChange
     else
       TDBEdit(FEdit).OnChange := FOnChange;
@@ -139,7 +135,7 @@ end;
 function TFieldEditor.ReadVal(): Variant;
 begin
   if FEdit <> nil then
-    if FColumn.IsReference then
+    if FColumn.FieldType = ftReference then
       Result := TDBLookupComboBox(FEdit).KeyValue
     else
       Result := Trim(TDBEdit(FEdit).Text);
@@ -152,7 +148,6 @@ begin
   FreeAndNil(FEdit);
   FreeAndNil(FPanel);
   FreeAndNil(FLookupQuery);
-  FreeAndNil(FListSource);
   inherited Destroy();
 end;
 

@@ -1,13 +1,12 @@
 object EditForm: TEditForm
-  Left = 772
+  Left = 739
   Height = 337
-  Top = 232
+  Top = 195
   Width = 319
   Caption = 'EditForm'
   ClientHeight = 337
   ClientWidth = 319
   OnClose = FormClose
-  OnCreate = FormCreate
   LCLVersion = '1.0.12.0'
   object ApplyButton: TButton
     Left = 112
@@ -39,16 +38,5 @@ object EditForm: TEditForm
     Caption = 'Отмена'
     OnClick = CancelButtonClick
     TabOrder = 2
-  end
-  object SQLQuery: TSQLQuery
-    FieldDefs = <>
-    Params = <>
-    left = 8
-    top = 288
-  end
-  object Datasource: TDatasource
-    DataSet = SQLQuery
-    left = 56
-    top = 288
   end
 end

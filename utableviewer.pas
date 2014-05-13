@@ -7,7 +7,7 @@ interface
 uses
   Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs, DBGrids,
   StdCtrls, Buttons, ExtCtrls, DbCtrls, db, sqldb, umetadata, UFilters,
-  UEditForm, UDBData, USQLQueryCreator;
+  UEditForm, UDBData, USQLQueryCreator, types;
 
 type
 
@@ -16,21 +16,17 @@ type
   TGridForm = class(TForm)
     AddFilterButton: TBitBtn;
     AddRecordButton: TBitBtn;
-    DelRecordButton: TBitBtn;
     DBGrid: TDBGrid;
+    DelRecordButton: TBitBtn;
     ImageList: TImageList;
     MenuPanel: TPanel;
     DBGridPanel: TPanel;
     RefreshButton: TSpeedButton;
     SortBy: TComboBox;
     SortByLabel: TLabel;
-    Datasource: TDatasource;
     SortOrderButton: TSpeedButton;
-    SQLQuery: TSQLQuery;
     procedure AddFilterButtonClick(Sender: TObject);
     procedure AddRecordButtonClick(Sender: TObject);
-    procedure DBEdit1Change(Sender: TObject);
-    procedure DBGridCellClick(Column: TColumn);
     procedure DBGridDblClick(Sender: TObject);
     procedure DelRecordButtonClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
@@ -42,8 +38,9 @@ type
     procedure RefreshButtonClick(Sender: TObject);
   private
     Table: TTableInfo;
+    FColsToShow: TColumnInfos;
     FIlterList: TFilterList;
-    QueryCreator: TSQLQueryCreator;
+    Query: TSQLQueryCreator;
   public
     constructor Create(TheOwner: TComponent; aTable: TTableInfo);
   end;
@@ -54,8 +51,8 @@ implementation
 
 procedure TGridForm.FormClose(Sender: TObject; var CloseAction: TCloseAction);
 begin
-  SQLQuery.Close;
-  FilterList.Destroy();
+  FreeAndNil(Query);
+  FreeAndNil(FilterList);
 end;
 
 procedure TGridForm.FormCreate(Sender: TObject);
@@ -80,8 +77,8 @@ end;
 
 procedure TGridForm.SortOrderButtonClick(Sender: TObject);
 begin
-  QueryCreator.OrderDesc := not QueryCreator.OrderDesc;
-  if QueryCreator.OrderDesc then
+  Query.OrderDesc := not Query.OrderDesc;
+  if Query.OrderDesc then
     ImageList.GetBitmap(1, SortOrderButton.Glyph)
   else
     ImageList.GetBitmap(0, SortOrderButton.Glyph);
@@ -98,8 +95,8 @@ begin
     ShowMessage('Проверьте заполненность полей фильтра');
     Exit;
   end;
-  QueryCreator.SetOrderBy([SortBy.ItemIndex, SORT_BY_NAME]);
-  QueryCreator.ShowItems(SQLQuery, DBGrid);
+  Query.SetOrderBy(FColsToShow[SortBy.ItemIndex]);
+  Query.ShowItems(DBGrid);
 end;
 
 procedure TGridForm.AddFilterButtonClick(Sender: TObject);
@@ -112,35 +109,34 @@ begin
   EditForms.ShowEditForm(Self, Table, 0, @RefreshButtonClick);
 end;
 
-procedure TGridForm.DBEdit1Change(Sender: TObject);
-begin
-
-end;
-
-procedure TGridForm.DBGridCellClick(Column: TColumn);
-begin
-
-end;
-
 procedure TGridForm.DBGridDblClick(Sender: TObject);
 begin
-  EditForms.ShowEditForm(Self, Table, SQLQuery.FieldByName('ID').AsInteger, @RefreshButtonClick);
+  EditForms.ShowEditForm(Self, Table, Query.GetCurrID, @RefreshButtonClick);
 end;
 
 procedure TGridForm.DelRecordButtonClick(Sender: TObject);
+var
+  UserChoice: Integer;
 begin
-  QueryCreator.DeleteRecordByID(SQLQuery.FieldByName('ID').AsInteger, SQLQuery);
+  UserChoice := MessageDlg('Удаление', 'Вы действительно хотите удалить эту запись?', mtConfirmation, mbOKCancel, 0);
+  if UserChoice = mrCancel then Exit;
+
+  Query.SQLQuery.Delete();
+  Query.SQLQuery.ApplyUpdates();
   RefreshButtonClick(Sender);
 end;
 
 constructor TGridForm.Create(TheOwner: TComponent; aTable: TTableInfo);
 begin
   inherited Create(TheOwner);
-  InitConnection(Datasource, SQLQuery);
 
   Table := aTable;
-  SortBy.Items.AddStrings(aTable.GetColumnCaptions());
+  FColsToShow := aTable.GetCols(cstAll, [coVisible]);
+  SortBy.Items.AddStrings(GetColCaptions(FColsToShow));
+  SortBy.ItemIndex := 0;
   FilterList := TFilterList.Create(Self, aTable);
+  Query := TSQLQueryCreator.Create(aTable);
+  DBGrid.DataSource := Query.DataSource;
   with FilterList do begin
     Parent := Self;
     Top := 5;
@@ -148,12 +144,8 @@ begin
     OnHeightChange := @ListHeightChange;
   end;
 
-  with QueryCreator do begin
-    Table := aTable;
-    FilterList := Self.FIlterList;
-  end;
-
-  QueryCreator.ShowItems(SQLQuery, DBGrid);
+  Query.FilterList := FilterList;
+  Query.ShowItems(DBGrid);
 end;
 
 end.

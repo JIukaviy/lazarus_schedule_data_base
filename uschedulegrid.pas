@@ -16,6 +16,23 @@ type
     Height: Integer;
   end;
 
+  { TOpenAnimation }
+
+  TOpenAnimation = class
+  private
+    Grid: TDrawGrid;
+    Timer: TTimer;
+    TargetHeights: array of TTargetHeight;
+    LastTime: Integer;
+    procedure Animation(Sender: TObject);
+    procedure DelAnimationByInd(aIndex: Integer);
+    procedure DelAnimations();
+  public
+    procedure AddAnimation(aRow, aTargetHeight: Integer);
+    constructor Create(aGrid: TDrawGrid);
+    destructor Destroy();
+  end;
+
   TScheduleGrid = class(TDrawGrid)
   private
     FTimer: TTimer;
@@ -34,6 +51,105 @@ type
   end;
 
 implementation
+
+{ TOpenAnimation }
+
+constructor TOpenAnimation.Create(aGrid: TDrawGrid);
+begin
+  TargetHeights := nil;
+  Grid := aGrid;
+  Timer := TTimer.Create(aGrid);
+  with Timer do begin
+    Enabled := false;
+    Interval := 20; // easing
+    OnTimer := @Animation;
+  end;
+end;
+
+destructor TOpenAnimation.Destroy();
+begin
+  FreeAndNil(Timer);
+  inherited;
+end;
+
+procedure TOpenAnimation.AddAnimation(aRow, aTargetHeight: Integer);
+var
+  i: Integer;
+begin
+  for i := 0 to High(TargetHeights) do
+    if TargetHeights[i].Row = aRow then begin
+      TargetHeights[i].Height := aTargetHeight;
+      Exit;
+    end;
+  SetLength(TargetHeights, Length(TargetHeights) + 1);
+  with TargetHeights[High(TargetHeights)] do begin
+    Row := aRow;
+    Height := aTargetHeight;
+  end;
+  Timer.Enabled := true;
+end;
+
+procedure TOpenAnimation.DelAnimationByInd(aIndex: Integer);
+var
+  i: Integer;
+begin
+  for i := aIndex to High(TargetHeights) - 1 do
+    TargetHeights[i] := TargetHeights[i+1];
+  SetLength(TargetHeights, Length(TargetHeights) - 1);
+end;
+
+procedure TOpenAnimation.DelAnimations();
+var
+  i, j: Integer;
+begin
+  j := 0; i := 0;
+  while i <= (High(TargetHeights) - j) do begin
+    while ((i + j) <= High(TargetHeights)) and ((TargetHeights[i+j].Row) < 0) do
+      inc(j);
+    TargetHeights[i] := TargetHeights[i+j];
+    inc(i);
+  end;
+  SetLength(TargetHeights, Length(TargetHeights) - j);
+  for i := 0 to High(TargetHeights) do begin
+    if TargetHeights[i].Row < 0 then
+      j := j;
+  end;
+end;
+
+procedure TOpenAnimation.Animation(Sender: TObject);
+var
+  i: Integer;
+  dheight: Integer;
+  del: boolean;
+  time: Integer;
+  dtime: double;
+begin
+  if Length(TargetHeights) = 0 then begin
+    Timer.Enabled := false;
+    LastTime := 0;
+    Exit;
+  end;
+  del := false;
+  time := GetTickCount();
+  if LastTime = 0 then
+    LastTime := time - 15;
+  dtime := (time - LastTime) / 1000;
+  for i := 0 to High(TargetHeights) do begin
+    with TargetHeights[i] do begin
+      dheight := Height - Grid.RowHeights[Row];
+      if dheight <> 0 then
+        Grid.RowHeights[Row] := Grid.RowHeights[Row] + Round(dheight*dtime*5) + sign(dheight)
+      else begin
+        Row := -1;
+        del := true;
+      end;
+    end;
+  end;
+  //DebugLn(time - LastTime);
+  LastTime := time;
+  if del then
+    DelAnimations();
+end;
 
 { TScheduleGrid }
 

@@ -19,10 +19,8 @@ type
   TConditions = array of TCondition;
 
   TFilterInfo = record
-    FieldName: String;
-    ParamName: String;
+    Column: TColumnInfo;
     Condition: String;
-    FieldType: TFieldType;
     Value: String;
   end;
 
@@ -45,15 +43,13 @@ type
     FOwner: TWinControl;
     FParent: TWinControl;
     FAlign: TAlign;
-    FConditions: array of TConditions;
+    FColumns: TColumnInfos;
     procedure SetLeft(aLeft: integer);
     procedure SetTop(aTop: integer);
     procedure SetWidth(aWidth: integer);
     procedure SetParent(aParent: TWinControl);
     procedure SetButton(aButton: TSpeedButton);
     procedure SetAlign(aAlign: TAlign);
-    function GetConditions(aFieldType: TFieldType): TConditions;
-    function GetConditionCaptions(aFieldType: TFieldType): Strings;
     function GetCurrCondition(): TCondition;
     procedure OnItemSelect(Sender: TObject);
   public
@@ -90,6 +86,7 @@ type
     FAlign: TAlign;
     FOnHeightChange: TNotifyEvent;
     FOnFilterDel: TNotifyEvent;
+    FOnFilterAdd: TNotifyEvent;
     procedure SetLeft(aLeft: integer);
     procedure SetTop(aTop: integer);
     procedure SetWidth(aWidth: integer);
@@ -116,44 +113,73 @@ type
     property Parent: TWinControl read FParent write SetParent;
     property OnHeightChange: TNotifyEvent read FOnHeightChange write FOnHeightChange;
     property OnFilterDel: TNotifyEvent read FOnFilterDel write FOnFilterDel;
+    property OnFilterAdd:  TNotifyEvent read FOnFilterAdd write FOnFilterAdd;
     property Align: TAlign read FAlign write SetAlign;
     property Count: Integer read GetFiltersCount;
   end;
 
+  function CreateIdFilter(aTable: TTableInfo; aID: Integer): TFilterInfo;
+
+
 implementation
+var
+  Conditions: array of TConditions;
+
+procedure AddCondition(aType: TFieldType; aCondition, aCaption: String; aFormatStr: String = '%');
+var
+  i: Integer;
+begin
+  i := Integer(aType);
+  SetLength(Conditions[i], Length(Conditions[i]) + 1);
+  with Conditions[i][High(Conditions[i])] do begin
+    Condition := aCondition;
+    Caption := aCaption;
+    FormatStr := aFormatStr;
+  end;
+end;
+
+procedure CopyConditions(aTo, aFrom: TFieldType);
+begin
+  Conditions[Integer(aTo)] := Conditions[Integer(aFrom)];
+end;
+
+function GetConditions(aFieldType: TFieldType): TConditions;
+begin
+  if Length(Conditions[Integer(aFieldType)]) = 0 then
+    Result := Conditions[Integer(ftUnknown)]
+  else
+    Result := Conditions[Integer(aFieldType)];
+end;
+
+function GetConditionCaptions(aFieldType: TFieldType): Strings;
+var
+  Conditions: TConditions;
+  i: Integer;
+begin
+  Conditions := GetConditions(aFieldType);
+  SetLength(Result, Length(Conditions));
+  for i := 0 to High(Conditions) do
+    Result[i] := Conditions[i].Caption;
+end;
+
+function CreateIdFilter(aTable: TTableInfo; aID: Integer): TFilterInfo;
+begin
+  with Result do begin
+    Column := aTable.Columns[COL_ID];
+    Condition := '=';
+    Value := IntToStr(aID);
+  end;
+end;
 
 constructor TFilter.Create(aOwner: TWinControl; aTableInfo: TTableInfo);
 const
   FieldTypeCount = 41;
   defConditionFormat = '%s';
-
-  procedure AddCondition(aType: TFieldType; aCondition, aCaption, aFromatStr: String);
-  var
-    i: Integer;
-  begin
-    i := Integer(aType);
-    SetLength(FConditions[i], Length(FConditions[i]) + 1);
-    with FConditions[i][High(FConditions[i])] do begin
-      Condition := aCondition;
-      Caption := aCaption;
-      FormatStr := aFromatStr;
-    end;
-  end;
-
-  procedure AddCondition(aType: TFieldType; aCondition, aCaption: String);
-  begin
-    AddCondition(aType, aCondition, aCaption, defConditionFormat);
-  end;
-
-  procedure CopyConditions(aTo, aFrom: TFieldType);
-  begin
-    FConditions[Integer(aTo)] := FConditions[Integer(aFrom)];
-  end;
-
 begin
   FOwner := aOwner;
   FTable := aTableInfo;
   FHeight := 30;
+  FColumns := aTableInfo.GetCols(cstAll, [coVisible]);
 
   FPanel := TPanel.Create(aOwner);
   with FPanel do begin
@@ -181,7 +207,7 @@ begin
   FField := TCombobox.Create(FPanel);
   with FField do begin
     Parent := FPanel;
-    Items.AddStrings(aTableInfo.GetColumnCaptions);
+    Items.AddStrings(GetColCaptions(FColumns));
     ReadOnly := True;
     Align := alLeft;
     OnSelect := @Self.OnItemSelect;
@@ -195,35 +221,15 @@ begin
   end;
 
   FPanel.Height := FField.Height;
-  SetLength(FConditions, Integer(High(TFieldType)) + 1);
-
-  AddCondition(ftUnknown, '=', 'Равно');
-  AddCondition(ftUnknown, '<=', 'Меньше или равно');
-  AddCondition(ftUnknown, '>=', 'Больше или равно');
-  AddCondition(ftUnknown, '<', 'Меньше');
-  AddCondition(ftUnknown, '>', 'Больше');
-
-  CopyConditions(ftString, ftUnknown);
-  AddCondition(ftString, 'Like', 'Начинается с:', '%s%%');
-  AddCondition(ftString, 'Like', 'Заканчивается на:', '%%%s');
-  AddCondition(ftString, 'Like', 'Содержит:', '%%%s%%');
 end;
 
 function TFilter.GetFilterInfo(): TFilterInfo;
-var
-  Column: TColumnInfo;
 begin
-  Column := FTable.Columns[FField.ItemIndex];
   with Result do
   begin
-    with Column do
-    begin
-      FieldName := GetColFullName(Column);
-      Condition := GetCurrCondition.Condition;
-      ParamName := Name;
-      Value := Format(GetCurrCondition.FormatStr, [FEdit.Text]);
-      Result.FieldType := FieldType;
-    end;
+    Column := FColumns[FField.ItemIndex];
+    Condition := GetCurrCondition.Condition;
+    Value := Format(GetCurrCondition.FormatStr, [FEdit.Text]);
   end;
 end;
 
@@ -286,38 +292,19 @@ begin
   FPanel.Align := aAlign;
 end;
 
-function TFilter.GetConditionCaptions(aFieldType: TFieldType): Strings;
-var
-  Conditions: TConditions;
-  i: Integer;
-begin
-  Conditions := GetConditions(aFieldType);
-  SetLength(Result, Length(Conditions));
-  for i := 0 to High(Conditions) do
-    Result[i] := Conditions[i].Caption;
-end;
-
 function TFilter.GetCurrCondition: TCondition;
 var
   Condtions: TConditions;
 begin
-  Condtions := GetConditions(FTable.Columns[FField.ItemIndex].FieldType);
+  Condtions := GetConditions(FColumns[FField.ItemIndex].FieldType);
   Result := Condtions[FConditionCmbBox.ItemIndex];
-end;
-
-function TFilter.GetConditions(aFieldType: TFieldType): TConditions;
-begin
-  if Length(FConditions[Integer(aFieldType)]) = 0 then
-    Result := FConditions[Integer(ftUnknown)]
-  else
-    Result := FConditions[Integer(aFieldType)];
 end;
 
 procedure TFilter.OnItemSelect(Sender: TObject);
 begin
   with TComboBox(Sender) do begin
     FConditionCmbBox.Items.Clear;
-    FConditionCmbBox.Items.AddStrings(GetConditionCaptions(FTable.Columns[ItemIndex].FieldType));
+    FConditionCmbBox.Items.AddStrings(GetConditionCaptions(FColumns[ItemIndex].FieldType));
   end;
 end;
 
@@ -383,7 +370,7 @@ begin
   begin
     Filters[ArrHigh - 1].SetButton(CreateButton('Images\DelFilter.png', @OnDelClick, ArrHigh - 1));
   end;}
-
+  if FOnFilterAdd <> nil then FOnFilterAdd(Self);
   UpdatePos();
 end;
 
@@ -410,10 +397,7 @@ var
 begin
   SetLength(Result, Length(FFilters));
   for i := 0 to High(FFilters) do
-  begin
     Result[i] := FFilters[i].GetFilterInfo();
-    Result[i].ParamName += IntToStr(i);
-  end;
 end;
 
 function TFilterList.CheckFields(): boolean;
@@ -445,8 +429,7 @@ end;
 
 procedure TFilterList.UpdatePos();
 begin
-  if FOnHeightChange <> nil then
-    FOnHeightChange(Self);
+  if FOnHeightChange <> nil then FOnHeightChange(Self);
 end;
 
 procedure TFilterList.OnAddClick(Sender: TObject);
@@ -512,9 +495,22 @@ var
   i: Integer;
 begin
   for i := 0 to High(FFilters) do
-    FFilters[i].Destroy();
+    FreeAndNil(FFilters[i]);
   FreeAndNil(FPanel);
   inherited;
 end;
+
+initialization
+  SetLength(Conditions, Integer(High(TFieldType)) + 1);
+  AddCondition(ftUnknown, '=', 'Равно');
+  AddCondition(ftUnknown, '<=', 'Меньше или равно');
+  AddCondition(ftUnknown, '>=', 'Больше или равно');
+  AddCondition(ftUnknown, '<', 'Меньше');
+  AddCondition(ftUnknown, '>', 'Больше');
+
+  CopyConditions(ftString, ftUnknown);
+  AddCondition(ftString, 'Like', 'Начинается с:', '%s%%');
+  AddCondition(ftString, 'Like', 'Заканчивается на:', '%%%s');
+  AddCondition(ftString, 'Like', 'Содержит:', '%%%s%%');
 
 end.

@@ -97,7 +97,7 @@ procedure TMainForm.ShowTable(Sender: TObject);
 var
   NewForm: TGridForm;
 begin
-  NewForm := TGridForm.Create(MainForm, ListOfTables.GetTable[TMenuItem(Sender).Tag]);
+  NewForm := TGridForm.Create(MainForm, ListOfTables.Tables[TMenuItem(Sender).Tag]);
   NewForm.Caption := TMenuItem(Sender).Caption;
   NewForm.Show;
 end;

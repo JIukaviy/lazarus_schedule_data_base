@@ -19,7 +19,7 @@ type
     ID: Integer;
   end;
 
-  TCellIndex = object
+  TCellIndex = record
     Column: Integer;
     Row: Integer;
   end;
@@ -74,21 +74,6 @@ type
     property Rect: TRect read FRect write SetRect;
   end;
 
-  TOpenAnimation = class
-  private
-    Grid: TDrawGrid;
-    Timer: TTimer;
-    TargetHeights: array of TTargetHeight;
-    LastTime: Integer;
-    procedure Animation(Sender: TObject);
-    procedure DelAnimationByInd(aIndex: Integer);
-    procedure DelAnimations();
-  public
-    procedure AddAnimation(aRow, aTargetHeight: Integer);
-    constructor Create(aGrid: TDrawGrid);
-    destructor Destroy();
-  end;
-
   TScheduleItemList = class
   private
     FItems: TScheduleItems;
@@ -121,16 +106,14 @@ type
 
   TScheduleForm = class(TForm)
     AddFilterButton: TBitBtn;
+    RefreshButton: TBitBtn;
     Grid: TScheduleGrid;
     ImageList: TImageList;
-    RefreshButton: TButton;
     Label3: TLabel;
     Label4: TLabel;
     MenuPanel: TPanel;
-    Datasource: TDatasource;
     OpenFilterPanelButton: TSpeedButton;
     OpenHideColumnsPanel: TSpeedButton;
-    SQLQuery: TSQLQuery;
     XColumnBox: TComboBox;
     YColumnBox: TComboBox;
     procedure AddFilterButtonClick(Sender: TObject);
@@ -152,10 +135,13 @@ type
     procedure OnInsertBtnClick(Sender: TObject);
     procedure OnEditBtnClick(Sender: TObject);
     procedure OnDeleteBtnClick(Sender: TObject);
+    procedure OnFilterAdd(Sender: TObject);
     procedure OnFilterDel(Sender: TObject);
     procedure OnFilterHeightChange(Sender: TObject);
     procedure XColumnBoxChange(Sender: TObject);
     procedure YColumnBoxChange(Sender: TObject);
+    procedure SetDataIsActual();
+    procedure SetDataIsNotActual();
   private
     FilterPanel: TExpandPanel;
     VisibleColsPanel: TExpandPanel;
@@ -170,10 +156,12 @@ type
     LastOpenedCell: TCellIndex;
     VisibleClmnsChkBox: TCheckGroup;
     VisibleColumns: array of boolean;
+    FSomethingChanged: boolean;
+    Query: TSQLQueryCreator;
+    FColumns: TColumnInfos;
     procedure SetCaptions();
     procedure SetColumnCaptions();
     procedure SetRowCaptions();
-    procedure SetOrderBy();
     procedure SendQuery();
     procedure FillSQLResult();
     procedure FillXTitles();
@@ -181,7 +169,7 @@ type
     procedure FillLookupResults();
     function GetListHeight(aRow, aCol: Integer): Integer;
     function GetLookupResult(aColIndex: Integer): TLookupResult;
-    function CreateLookupQuery(ColumnIndex: Integer): TSQLQuery;
+    function CreateLookupQuery(ColumnIndex: Integer): TSQLQueryCreator;
   public
     { public declarations }
   end;
@@ -190,9 +178,6 @@ var
   ScheduleForm: TScheduleForm;
 
 implementation
-
-var
-  QueryCreator: TSQLQueryCreator;
 
 const ElementHeight = 70;
 
@@ -274,11 +259,10 @@ end;
 
 procedure TScheduleForm.FormCreate(Sender: TObject);
 var
-  Btn: TButton;
   i: Integer;
 begin
-  InitConnection(DataSource, SQLQuery);
   Table := ListOfTables.GetTableByName('Schedule_items');
+  Query := TSQLQueryCreator.Create(Table);
   SetLength(VisibleColumns, Table.ColCount - 1);
 
   Grid := TScheduleGrid.Create(Self);
@@ -310,7 +294,6 @@ begin
     AnchorToNeighbour(akTop, 0, MenuPanel);
     OpeningSide := osLeft;
   end;
-  //Grid.AnchorToNeighbour(akRight, 3, FilterPanel);
 
   VisibleColsPanel := TExpandPanel.Create(Self);
   with VisibleColsPanel do begin
@@ -331,7 +314,7 @@ begin
     Left := 3;
     AutoSize := true;
     Align := alTop;
-    Items.AddStrings(Table.GetColumnCaptions());
+    Items.AddStrings(GetColCaptions(Table.GetCols(cstAll, [coVisible])));
     for i := 0 to Items.Count - 1 do begin
       Checked[i] := true;
       VisibleColumns[i] := true;
@@ -344,11 +327,12 @@ begin
     Parent := FilterPanel;
     Top := 5;
     Align := alTop;
+    OnFilterAdd := @Self.OnFilterAdd;
     OnFilterDel := @Self.OnFilterDel;
     OnHeightChange := @OnFilterHeightChange;
   end;
 
-  with QueryCreator do begin
+  with Query do begin
     Table := Self.Table;
     FilterList := Self.FIlterList;
   end;
@@ -360,22 +344,15 @@ begin
     OnDeleteClick := @OnDeleteBtnClick;
   end;
 
-  XColumnBox.Items.AddStrings(Table.GetColumnCaptions);
-  YColumnBox.Items.AddStrings(Table.GetColumnCaptions);
-  XColumnBox.ItemIndex := 5;
-  YColumnBox.ItemIndex := 4;
-  SetOrderBy();
+  FColumns := Table.GetCols(cstAll, [coVisible]);
+
+  XColumnBox.Items.AddStrings(GetColCaptions(FColumns));
+  YColumnBox.Items.AddStrings(GetColCaptions(FColumns));
+  XColumnBox.ItemIndex := COL_GROUP_ID;
+  YColumnBox.ItemIndex := COL_DAY_ID;
   FillLookupResults();
   SetCaptions();
   FillSQLResult();
-  {Btn := TButton.Create(FilterPanel);
-  with Btn do begin
-    Parent := FilterPanel;
-    Left := 5;
-    Top := 5;
-    Width := 50;
-    Height := 20;
-  end;}
 end;
 
 procedure TScheduleForm.RefreshButtonClick(Sender: TObject);
@@ -388,6 +365,7 @@ begin
   FillSQLResult();
   Grid.Invalidate();
   FilterPanel.Close();
+  SetDataIsActual();
 end;
 
 procedure TScheduleForm.AddFilterButtonClick(Sender: TObject);
@@ -430,7 +408,7 @@ const
 var
   ScheduleItem: TScheduleItem;
   RowBottom: Integer;
-  i, j: Integer;
+  i: Integer;
 begin
   if (aRow > Length(YTitles)) or (aCol > Length(XTitles)) then Exit;
   //if aRow = 0 then
@@ -540,9 +518,17 @@ begin
   RefreshButtonClick(Self);
 end;
 
+procedure TScheduleForm.OnFilterAdd(Sender: TObject);
+begin
+  OpenFilterPanelButton.Caption := Format('Фильтры(%d)', [FilterList.Count]);
+  SetDataIsNotActual();
+end;
+
 procedure TScheduleForm.OnFilterDel(Sender: TObject);
 begin
   If FilterList.Count = 0 then FilterPanel.Close();
+  OpenFilterPanelButton.Caption := Format('Фильтры(%d)', [FilterList.Count]);
+  SetDataIsNotActual();
 end;
 
 procedure TScheduleForm.OnFilterHeightChange(Sender: TObject);
@@ -559,17 +545,8 @@ begin
     VisibleColsPanel.Open();
 end;
 
-procedure TScheduleForm.SetOrderBy();
-const
-  time_id_index = 3;
-begin
-  //Table.SortOrder := true;
-  QueryCreator.SetOrderBy([YColumnBox.ItemIndex, SORT_BY_ID, XColumnBox.ItemIndex, SORT_BY_ID, time_id_index, SORT_BY_ID]);
-end;
-
 procedure TScheduleForm.XColumnBoxChange(Sender: TObject);
 begin
-  SetOrderBy();
   FillXTitles();
   SetColumnCaptions();
   FillSQLResult();
@@ -578,11 +555,22 @@ end;
 
 procedure TScheduleForm.YColumnBoxChange(Sender: TObject);
 begin
-  SetOrderBy();
   FillYTitles();
   SetRowCaptions();
   FillSQLResult();
   Grid.Refresh();
+end;
+
+procedure TScheduleForm.SetDataIsActual;
+begin
+  FSomethingChanged := false;
+  RefreshButton.Enabled := false;
+end;
+
+procedure TScheduleForm.SetDataIsNotActual;
+begin
+  FSomethingChanged := true;
+  RefreshButton.Enabled := true;
 end;
 
 procedure TScheduleForm.SetCaptions();
@@ -591,22 +579,18 @@ begin
   SetRowCaptions();
 end;
 
-function TScheduleForm.CreateLookupQuery(ColumnIndex: Integer): TSQLQuery;
+function TScheduleForm.CreateLookupQuery(ColumnIndex: Integer): TSQLQueryCreator;
 begin
-  Result := TSQLQuery.Create(Self);
-  InitSQLQuery(Result);
-  with Table.Columns[ColumnIndex] do
-    Result.SQL.Text := Format('select ID, %s from %s order by id', [ReferenceName, ReferenceTable]);
+  Result := TSQLQueryCreator.Create(TTableInfo(Table.Columns[ColumnIndex].RefTable));
+  Result.SelectCols(cstOwn);
+  Result.SetOrderBy([COL_ID]);
+  Result.SendQuery();
 end;
 
 procedure TScheduleForm.SendQuery();
-begin
-  {SQLQuery.Close();
-  SetOrderBy();
-  SQLQuery.SQL.Text := Table.CreateQuery();
-  SQLQuery.Open();}
-  SetOrderBy();
-  QueryCreator.SendQuery(SQLQuery);
+begin;
+  Query.SelectCols(cstOwn);
+  Query.SendQuery();
 end;
 
 procedure TScheduleForm.SetColumnCaptions();
@@ -620,8 +604,6 @@ begin
 end;
 
 procedure TScheduleForm.SetRowCaptions();
-var
-  i: Integer;
 begin
   Grid.RowCount := Length(YTitles) + 1;
   Grid.RowHeights[0] := 22;
@@ -636,22 +618,21 @@ end;
 
 function TScheduleForm.GetLookupResult(aColIndex: Integer): TLookupResult;
 var
-  LookupQuery: TSQLQuery;
+  LookupQuery: TSQLQueryCreator;
   i: Integer;
 begin
   LookupQuery := CreateLookupQuery(aColIndex);
-  LookupQuery.Open();
-  SetLength(Result, LookupQuery.RecordCount);
+  SetLength(Result, LookupQuery.SQLQuery.RecordCount);
   i := 0;
-  while not LookupQuery.EOF do begin
-    if Length(Result) < LookupQuery.RecordCount then
-      SetLength(Result, LookupQuery.RecordCount);
-    Result[i].ID := LookupQuery.Fields[0].Value;
-    Result[i].Value := LookupQuery.Fields[1].Value;
-    LookupQuery.Next();
-    inc(i);
-  end;
-  LookupQuery.Close();
+  with LookupQuery.SQLQuery do
+    while not LookupQuery.SQLQuery.EOF do begin
+      if Length(Result) < RecordCount then
+        SetLength(Result, RecordCount);
+      Result[i].ID := Fields[0].Value;
+      Result[i].Value := Fields[1].Value;
+      Next();
+      inc(i);
+    end;
   FreeAndNil(LookupQuery);
 end;
 
@@ -674,19 +655,20 @@ end;
 procedure TScheduleForm.FillSQLResult();
 var
   i, j, k: Integer;
-  XFieldName: String;
-  YFieldName: String;
   YFieldID, XFieldID, ColumnLen: Integer;
+  XIDCol, YIDCol: TColumnInfo;
   XLen, YLen: Integer;
 begin
   XLen := Length(XTitles);
   YLen := Length(YTitles);
-  ColumnLen := Table.ColCount();
-  SendQuery();
-  XFieldName := Table.Columns[XColumnBox.ItemIndex].Name;
-  YFieldName := Table.Columns[YColumnBox.ItemIndex].Name;
-  XFieldID := SQLQuery.FieldByName(XFieldName).Index;
-  YFieldID := SQLQuery.FieldByName(YFieldName).Index;
+  ColumnLen := Length(FColumns);
+  XIDCol := Table.GetOwnColByRef(FColumns[XColumnBox.ItemIndex]);
+  YIDCol := Table.GetOwnColByRef(FColumns[YColumnBox.ItemIndex]);
+  Query.SelectCols(cstAll);
+  Query.SetOrderBy([YIDCol, XIDCol, Table.GetColByName('time_id')]);
+  Query.SendQuery();
+  XFieldID := Query.SQLQuery.FieldByName(XIDCol.AliasName()).Index;
+  YFieldID := Query.SQLQuery.FieldByName(YIDCol.AliasName()).Index;
 
   SQLResult := nil;
   SetLength(SQLResult, YLen);
@@ -694,15 +676,18 @@ begin
     SetLength(SQLResult[i], XLen);
   i := 0;
   j := 0;
-  while not SQLQuery.EOF do begin
-    while SQLQuery.Fields[YFieldID].AsInteger > YTitles[i].ID do begin inc(i); j := 0; end;
-    while SQLQuery.Fields[XFieldID].AsInteger > XTitles[j].ID do inc(j);
-    SetLength(SQLResult[i][j], Length(SQLResult[i][j]) + 1);
-    SetLength(SQLResult[i][j][High(SQLResult[i][j])], ColumnLen);
-    for k := 0 to Table.ColCount() - 1 do
-      SQLResult[i][j][High(SQLResult[i][j])][k] := SQLQuery.FieldByName(GetColSqlName(Table.Columns[k])).AsString;
-    SQLQuery.Next();
-  end;
+  with Query.SQLQuery do
+    while not EOF do begin
+      while Fields[YFieldID].AsInteger > YTitles[i].ID do begin inc(i); j := 0; end;
+      while Fields[XFieldID].AsInteger > XTitles[j].ID do inc(j);
+      SetLength(SQLResult[i][j], Length(SQLResult[i][j]) + 1);
+      SetLength(SQLResult[i][j][High(SQLResult[i][j])], ColumnLen);
+      for k := 0 to ColumnLen - 1 do begin
+        SQLResult[i][j][High(SQLResult[i][j])][k] := FieldByName(FColumns[k].AliasName).AsString;
+        //ShowMessage(FieldByName(FColumns[k].AliasName).AsString);
+      end;
+      Next();
+    end;
 end;
 
 procedure TScheduleItem.Draw();
@@ -754,7 +739,7 @@ begin
   end;
   with Canvas do begin
     Pen.Width := 1;
-    Pen.Color := clRed;
+    Pen.Color := clGray;
     {Brush.Color := RGBToColor(230, 230, 230);
     Brush.Style := bsSolid;
     if Fill then
@@ -771,8 +756,8 @@ begin
     Font.Size := 8;
     if IsVisible[COL_DAY_ID] then
       TextRect(DayRect, DayRect.Left + Space, DayRect.Top, Fields[COL_DAY_ID]);
-    if IsVisible[COL_TIME_ID] then
-      TextRect(BeginTimeRect, BeginTimeRect.Left + Space, BeginTimeRect.Top, Fields[COL_TIME_ID]);
+    if IsVisible[COL_TIME_BEGIN_ID] then
+      TextRect(BeginTimeRect, BeginTimeRect.Left + Space, BeginTimeRect.Top, Fields[COL_TIME_BEGIN_ID]);
     Font.Size := 14;
     if IsVisible[COL_SUBJECT_TYPE_ID] then
       TextRect(SubjTypeRect, SubjTypeRect.Left + Space, SubjTypeRect.Top, Fields[COL_SUBJECT_TYPE_ID]);
@@ -797,8 +782,6 @@ begin
 end;
 
 destructor TScheduleItemList.Destroy();
-var
-  i: Integer;
 begin
   FreeAndNil(FScrollBar);
   inherited;
@@ -831,7 +814,6 @@ end;
 procedure TScheduleItemList.Draw(Sender: TObject);
 var
   i: Integer;
-  CurrHeight: Integer;
 begin
   for i := 0 to High(FItems) do
     with FItems[i] do begin
@@ -862,108 +844,9 @@ begin
 end;
 
 procedure TScheduleItemList.SetStringsArr(aStringsArr: TStringsArr);
-var
-  i: Integer;
 begin
   FStringsArr := aStringsArr;
   InitItems();
-end;
-
-constructor TOpenAnimation.Create(aGrid: TDrawGrid);
-begin
-  TargetHeights := nil;
-  Grid := aGrid;
-  Timer := TTimer.Create(aGrid);
-  with Timer do begin
-    Enabled := false;
-    Interval := 20; // easing
-    OnTimer := @Animation;
-  end;
-end;
-
-destructor TOpenAnimation.Destroy();
-begin
-  FreeAndNil(Timer);
-  inherited;
-end;
-
-procedure TOpenAnimation.AddAnimation(aRow, aTargetHeight: Integer);
-var
-  i: Integer;
-begin
-  for i := 0 to High(TargetHeights) do
-    if TargetHeights[i].Row = aRow then begin
-      TargetHeights[i].Height := aTargetHeight;
-      Exit;
-    end;
-  SetLength(TargetHeights, Length(TargetHeights) + 1);
-  with TargetHeights[High(TargetHeights)] do begin
-    Row := aRow;
-    Height := aTargetHeight;
-  end;
-  Timer.Enabled := true;
-end;
-
-procedure TOpenAnimation.DelAnimationByInd(aIndex: Integer);
-var
-  i: Integer;
-begin
-  for i := aIndex to High(TargetHeights) - 1 do
-    TargetHeights[i] := TargetHeights[i+1];
-  SetLength(TargetHeights, Length(TargetHeights) - 1);
-end;
-
-procedure TOpenAnimation.DelAnimations();
-var
-  i, j: Integer;
-begin
-  j := 0; i := 0;
-  while i <= (High(TargetHeights) - j) do begin
-    while ((i + j) <= High(TargetHeights)) and ((TargetHeights[i+j].Row) < 0) do
-      inc(j);
-    TargetHeights[i] := TargetHeights[i+j];
-    inc(i);
-  end;
-  SetLength(TargetHeights, Length(TargetHeights) - j);
-  for i := 0 to High(TargetHeights) do begin
-    if TargetHeights[i].Row < 0 then
-      j := j;
-  end;
-end;
-
-procedure TOpenAnimation.Animation(Sender: TObject);
-var
-  i: Integer;
-  dheight: Integer;
-  del: boolean;
-  time: Integer;
-  dtime: double;
-begin
-  if Length(TargetHeights) = 0 then begin
-    Timer.Enabled := false;
-    LastTime := 0;
-    Exit;
-  end;
-  del := false;
-  time := GetTickCount();
-  if LastTime = 0 then
-    LastTime := time - 15;
-  dtime := (time - LastTime) / 1000;
-  for i := 0 to High(TargetHeights) do begin
-    with TargetHeights[i] do begin
-      dheight := Height - Grid.RowHeights[Row];
-      if dheight <> 0 then
-        Grid.RowHeights[Row] := Grid.RowHeights[Row] + Round(dheight*dtime*5) + sign(dheight)
-      else begin
-        Row := -1;
-        del := true;
-      end;
-    end;
-  end;
-  //DebugLn(time - LastTime);
-  LastTime := time;
-  if del then
-    DelAnimations();
 end;
 
 end.
