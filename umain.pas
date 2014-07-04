@@ -48,7 +48,7 @@ procedure TMainForm.FormClose(Sender: TObject; var CloseAction: TCloseAction);
 var
   UserChoice: Integer;
 begin
-  UserChoice := MessageDlg('Сохранение изменений', 'Подтвердить транзацию?', mtConfirmation, mbYesNoCancel, 0);
+  UserChoice := MessageDlg('Сохранение изменений', 'Подтвердить транзакцию?', mtConfirmation, mbYesNoCancel, 0);
   case UserChoice of
     mrYes: SQLTransaction.Commit;
     mrNo: Exit;

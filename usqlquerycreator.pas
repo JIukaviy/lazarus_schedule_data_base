@@ -51,7 +51,19 @@ type
     property SQLQuery: TSQLQuery read FSQLQuery;
   end;
 
+  procedure SetColVals(aSQLQuery:TSQLQuery; aColVals: TColumnVals);
+
 implementation
+
+procedure SetColVals(aSQLQuery:TSQLQuery; aColVals: TColumnVals);
+var
+  i: Integer;
+begin
+  if aColVals = nil then Exit;
+  with aSQLQuery do
+    for i := 0 to High(aColVals) do
+      FieldByName(aColVals[i].ColumnInfo.AliasName()).AsString := aColVals[i].Value;
+end;
 
 { TSQLQueryCreator }
 
@@ -78,14 +90,6 @@ end;
 function TSQLQueryCreator.CreateQuery(): String;
 var
   i: Integer;
- { function GetFullColName(i, j : Integer): String;
-  begin
-    if FTable.Columns[i].IsReference then
-      Result := FTable.Columns[j].ReferenceTable + '.' +  FTable.Columns[j].ReferenceName
-    else
-      Result := FTable.Name + '.' + FTable.Columns[j].Name + ' ';
-  end;}
-
 begin
   if Length(FColsToShow) = 0 then begin
     ShowMessage('Не указаны колонки для выборки');
@@ -114,7 +118,7 @@ begin
   if Length(FFilters) > 0 then begin
     Result += ' where ';
     for i := 0 to High(FFilters) do begin
-      Result += Format(' %s %s :%s%d ', [FFilters[i].Column.OwnName(), FFilters[i].Condition,
+      Result += Format(' %s %s :%s%d ', [FFilters[i].Column.OwnName(), FFilters[i].Condition.SQLStr,
                          FFilters[i].Column.AliasName, i]);
       if i < High(FFilters) then Result += ' and ';
     end;
@@ -141,7 +145,7 @@ begin
   SQLQuery.Params.Clear();
   for i := 0 to High(Filters) do
     with Filters[i] do
-      SQLQuery.Params.CreateParam(Column.FieldType, Column.AliasName + IntToStr(i), ptInput).Text := Value;
+      SQLQuery.Params.CreateParam(Column.FieldType, Column.AliasName + IntToStr(i), ptInput).Text := SQLValue;
 end;
 
 procedure TSQLQueryCreator.SetUpdateSQLQuery;
@@ -289,7 +293,7 @@ end;
 
 function TSQLQueryCreator.GetCurrID: Integer;
 begin
-  Result := FSQLQuery.FieldByName(FTable.GetPrimaryCol.AliasName()).AsInteger
+  Result := FSQLQuery.FieldByName(FTable.GetPrimaryCol.AliasName()).AsInteger           //
 end;
 
 end.

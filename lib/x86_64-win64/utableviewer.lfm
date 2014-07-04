@@ -1,8 +1,8 @@
 object GridForm: TGridForm
-  Left = 454
+  Left = 290
   Height = 533
   Hint = 'Обновить'
-  Top = 399
+  Top = 378
   Width = 670
   Caption = 'GridForm'
   ClientHeight = 533

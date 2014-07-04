@@ -1,7 +1,7 @@
 object ScheduleForm: TScheduleForm
-  Left = 616
+  Left = 540
   Height = 598
-  Top = 271
+  Top = 243
   Width = 1000
   Caption = 'Расписание'
   ClientHeight = 598
@@ -58,7 +58,7 @@ object ScheduleForm: TScheduleForm
       ParentColor = False
     end
     object AddFilterButton: TBitBtn
-      Left = 645
+      Left = 632
       Height = 32
       Top = 8
       Width = 145
@@ -145,12 +145,12 @@ object ScheduleForm: TScheduleForm
       TabOrder = 2
     end
     object OpenFilterPanelButton: TSpeedButton
-      Left = 789
+      Left = 784
       Height = 33
       Top = 8
-      Width = 105
+      Width = 112
       Anchors = [akTop, akRight]
-      Caption = 'Фильтры'
+      Caption = 'Фильтры(0)'
       Flat = True
       Glyph.Data = {
         36090000424D3609000000000000360000002800000018000000180000000100
@@ -402,6 +402,15 @@ object ScheduleForm: TScheduleForm
       }
       OnClick = RefreshButtonClick
       TabOrder = 3
+    end
+    object ButtonExport: TButton
+      Left = 488
+      Height = 34
+      Top = 6
+      Width = 72
+      Caption = 'Экспорт'
+      OnClick = ButtonExportClick
+      TabOrder = 4
     end
   end
   object ImageList: TImageList

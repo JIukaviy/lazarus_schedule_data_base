@@ -7,8 +7,8 @@ uses
   cthreads,
   {$ENDIF}{$ENDIF}
   Interfaces, // this includes the LCL widgetset
-  Forms, UMain, umetadata, UTableViewer, UFilters, ufieldeditor, 
-  UDBData, UScheduleForm, USQLQueryCreator;
+  Forms, UMain, umetadata, UTableViewer, UFilters, ufieldeditor, UDBData,
+  UScheduleForm, USQLQueryCreator, USchConflictsForm, USchConflicts, UExport;
 
 {$R *.res}
 
@@ -17,6 +17,7 @@ begin
   Application.Initialize;
   Application.CreateForm(TMainForm, MainForm);
   Application.CreateForm(TScheduleForm, ScheduleForm);
+  Application.CreateForm(TScheduleConflictsForm, ScheduleConflictsForm);
   Application.Run;
 end.
 

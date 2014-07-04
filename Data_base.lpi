@@ -44,7 +44,7 @@
         <PackageName Value="LCL"/>
       </Item4>
     </RequiredPackages>
-    <Units Count="11">
+    <Units Count="14">
       <Unit0>
         <Filename Value="Data_base.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -108,10 +108,28 @@
         <UnitName Value="USQLQueryCreator"/>
       </Unit9>
       <Unit10>
-        <Filename Value="uschedulegrid.pas"/>
+        <Filename Value="uanimatedgrid.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="UScheduleGrid"/>
+        <UnitName Value="UAnimatedGrid"/>
       </Unit10>
+      <Unit11>
+        <Filename Value="uschconflictsform.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="ScheduleConflictsForm"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
+        <UnitName Value="USchConflictsForm"/>
+      </Unit11>
+      <Unit12>
+        <Filename Value="uschconflicts.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="USchConflicts"/>
+      </Unit12>
+      <Unit13>
+        <Filename Value="uexport.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="UExport"/>
+      </Unit13>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

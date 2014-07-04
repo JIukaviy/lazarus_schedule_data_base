@@ -8,11 +8,16 @@ uses
   Classes, SysUtils, sqldb, mysql55conn, db, FileUtil, Forms, Controls,
   Graphics, Dialogs, Grids, DbCtrls, StdCtrls, ExtCtrls, Buttons, Math, UDBData,
   umetadata, UFilters, LCLIntf, LCLProc, ComCtrls, EditBtn,
-  UExpandPanel, UScheduleGrid, USQLQueryCreator, UEditForm;
+  UExpandPanel, uanimatedgrid, USQLQueryCreator, UEditForm;
 
 type
 
   { TScheduleForm }
+
+  TPoint = record
+    X: Integer;
+    y: Integer;
+  end;
 
   TLookupRecord = record
     Value: String;
@@ -20,31 +25,22 @@ type
   end;
 
   TCellIndex = record
-    Column: Integer;
+    Col: Integer;
     Row: Integer;
   end;
+
+  TItemIndex = record
+    Cell: TCellIndex;
+    Index: Integer;
+  end;
+
+  TVisibleColIDs = array of boolean;
 
   TRects = array of TRect;
 
-  TScheduleItem = object
-    Fields: Strings;
-    IsVisible: array of boolean;
-    CellIndex: TCellIndex;
-    BorderRect: TRect;
-    Canvas: TCanvas;
-    Height: Integer;
-    Fill: boolean;
-    procedure Draw();
-    procedure Draw(aOffset: Integer);
-  end;
+  { TScheduleItem }
 
-  TScheduleItems = array of TScheduleItem;
   TStringsArr = array of Strings;
-
-  TTargetHeight = record
-    Row: Integer;
-    Height: Integer;
-  end;
 
   { TEditCellBtns }
 
@@ -61,18 +57,60 @@ type
     FOnEditClick: TNotifyEvent;
     FOnDeleteClick: TNotifyEvent;
     FRect: TRect;
+    FVisible: boolean;
     procedure SetInsertClick(aEvent: TNotifyEvent);
     procedure SetEditClick(aEvent: TNotifyEvent);
     procedure SetDeleteClick(aEvent: TNotifyEvent);
     procedure SetRect(aRect: TRect);
+    procedure SetVisible(aVal: boolean);
   public
     constructor Create(aOwner: TWinControl);
-    destructor Destroy();
+    destructor Destroy(); override;
     property OnInsertClick: TNotifyEvent read FOnInsertClick write SetInsertClick;
     property OnEditClick: TNotifyEvent read FOnEditClick write SetEditClick;
     property OnDeleteClick: TNotifyEvent read FOnDeleteClick write SetDeleteClick;
+    property Visible: boolean read FVisible write SetVisible;
     property Rect: TRect read FRect write SetRect;
   end;
+
+  TScheduleItem = class
+  private
+    FOwner: TWinControl;
+    FEditCellBtns: TEditCellBtns;
+    FItemID: Integer;
+    FCellIndex: TCellIndex;
+    FBorderRect: TRect;
+    FHeight: Integer;
+    FFill: boolean;
+    FOnEditClick: TNotifyEvent;
+    FOnInsertClick: TNotifyEvent;
+    FOnDeleteClick: TNotifyEvent;
+    FXColVal: TColumnVal;
+    FYColVal: TColumnVal;
+    procedure EditClick(Sender: TObject);
+    procedure InsertClick(Sender: TObject);
+    procedure DeleteClick(Sender: TObject);
+    procedure SetRect(aRect: TRect);
+    procedure SetDrawBtn(aVal: boolean);
+    function GetDrawBtn(): boolean;
+  public
+    VisibleColIDs: ^TVisibleColIDs;
+    Fields: Strings;
+    constructor Create(aOwner: TWinControl; aItemID: Integer);
+    destructor Destroy(); override;
+    procedure Draw(aCanvas: TCanvas);
+    property Height: Integer read FHeight write FHeight;
+    property BorderRect: TRect read FBorderRect write SetRect;
+    property ItemID: Integer read FItemID;
+    property DrawBtn: boolean read GetDrawBtn write SetDrawBtn;
+    property XColVal: TColumnVal read FXColVal write FXColVal;
+    property YColVal: TColumnVal read FYColVal write FYColVal;
+    property OnEditClick: TNotifyEvent read FOnEditClick write FOnEditClick;
+    property OnInsertClick: TNotifyEvent read FOnInsertClick write FOnInsertClick;
+    property OnDeleteClick: TNotifyEvent read FOnDeleteClick write FOnDeleteClick;
+  end;
+
+  TScheduleItems = array of TScheduleItem;
 
   TScheduleItemList = class
   private
@@ -103,11 +141,13 @@ type
   end;
 
   TLookupResult = array of TLookupRecord;
+  TScheduleData = array of array of array of TScheduleItem;
 
   TScheduleForm = class(TForm)
     AddFilterButton: TBitBtn;
+    ButtonExport: TButton;
     RefreshButton: TBitBtn;
-    Grid: TScheduleGrid;
+    Grid: TAnimatedGrid;
     ImageList: TImageList;
     Label3: TLabel;
     Label4: TLabel;
@@ -117,6 +157,7 @@ type
     XColumnBox: TComboBox;
     YColumnBox: TComboBox;
     procedure AddFilterButtonClick(Sender: TObject);
+    procedure ButtonExportClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure GridDblClick(Sender: TObject);
     procedure GridClick(Sender: TObject);
@@ -138,6 +179,7 @@ type
     procedure OnFilterAdd(Sender: TObject);
     procedure OnFilterDel(Sender: TObject);
     procedure OnFilterHeightChange(Sender: TObject);
+    procedure OnFilterChange(Sender: TObject);
     procedure XColumnBoxChange(Sender: TObject);
     procedure YColumnBoxChange(Sender: TObject);
     procedure SetDataIsActual();
@@ -145,30 +187,34 @@ type
   private
     FilterPanel: TExpandPanel;
     VisibleColsPanel: TExpandPanel;
-    Table: TTableInfo;
     XTitles: TLookupResult;
     YTitles: TLookupResult;
     FilterList: TFilterList;
-    SQLResult: array of array of array of array of String;
+    Items: TScheduleData;
     EditCellBtns: TEditCellBtns;
     LastSelectedCell: TCellIndex;
-    LastSelItemID: Integer;
+    LastSelItem: TItemIndex;
     LastOpenedCell: TCellIndex;
     VisibleClmnsChkBox: TCheckGroup;
-    VisibleColumns: array of boolean;
+    VisibleColumns: TVisibleColIDs;
     FSomethingChanged: boolean;
     Query: TSQLQueryCreator;
     FColumns: TColumnInfos;
+    MousePos: TPoint;
     procedure SetCaptions();
     procedure SetColumnCaptions();
     procedure SetRowCaptions();
     procedure SendQuery();
-    procedure FillSQLResult();
+    procedure ClearItems();
+    procedure FillItems();
     procedure FillXTitles();
     procedure FillYTitles();
     procedure FillLookupResults();
     function GetListHeight(aRow, aCol: Integer): Integer;
     function GetLookupResult(aColIndex: Integer): TLookupResult;
+    function GetXColInfo(aColIndex: Integer): TCOlumnInfo;
+    function GetYColInfo(aRowIndex: Integer): TCOlumnInfo;
+    function ItemByID(aItemID: TItemIndex): TScheduleItem;
     function CreateLookupQuery(ColumnIndex: Integer): TSQLQueryCreator;
   public
     { public declarations }
@@ -179,7 +225,20 @@ var
 
 implementation
 
-const ElementHeight = 70;
+uses
+  UExport;
+
+var
+  SchTable: TTableInfo;
+
+const
+  ElementHeight = 70;
+
+function InRect(aPoint: TPoint; aRect: TRect): boolean;
+begin
+  Result := InRange(aPoint.X, aRect.Left, aRect.Right) and
+            InRange(aPoint.Y, aRect.Top,  aRect.Bottom);
+end;
 
 { TEditCellBtns }
 
@@ -219,31 +278,39 @@ begin
   end;
 end;
 
+procedure TEditCellBtns.SetVisible(aVal: boolean);
+begin
+  FInsertBtn.Visible := aVal;
+  FEditBtn.Visible := aVal;
+  FDeleteBtn.Visible := aVal;
+end;
+
 constructor TEditCellBtns.Create(aOwner: TWinControl);
 const
   BtnSize = 20;
+var
+  Picture: TPicture;
+
+  procedure InitBtn(var aBtn: TSpeedButton; aImgName: String);
+  begin
+    aBtn := TSpeedButton.Create(aOwner);
+    Picture.LoadFromFile(aImgName);
+    with aBtn do begin
+      Parent := aOwner;
+      Height := BtnSize;
+      Width := BtnSize;
+      Visible := false;
+      Glyph := Picture.Bitmap;
+      Flat := true;
+    end;
+  end;
+
 begin
+  Picture := TPicture.Create();
   FOwner := aOwner;
-  FInsertBtn := TSpeedButton.Create(aOwner);
-  with FInsertBtn do begin
-    Parent := aOwner;
-    Height := BtnSize;
-    Width := BtnSize;
-  end;
-
-  FEditBtn := TSpeedButton.Create(aOwner);
-  with FEditBtn do begin
-    Parent := aOwner;
-    Height := BtnSize;
-    Width := BtnSize;
-  end;
-
-  FDeleteBtn := TSpeedButton.Create(aOwner);
-  with FDeleteBtn do begin
-    Parent := aOwner;
-    Height := BtnSize;
-    Width := BtnSize;
-  end;
+  InitBtn(FInsertBtn, 'Images/AddRecord16x16.png');
+  InitBtn(FEditBtn, 'Images/EditRecord16x16.png');
+  InitBtn(FDeleteBtn, 'Images/DeleteRecord16x16.png');
 end;
 
 destructor TEditCellBtns.Destroy;
@@ -261,11 +328,11 @@ procedure TScheduleForm.FormCreate(Sender: TObject);
 var
   i: Integer;
 begin
-  Table := ListOfTables.GetTableByName('Schedule_items');
-  Query := TSQLQueryCreator.Create(Table);
-  SetLength(VisibleColumns, Table.ColCount - 1);
+  //Table := ListOfTables.GetTableByName('Schedule_items');
+  Query := TSQLQueryCreator.Create(SchTable);
+  SetLength(VisibleColumns, SchTable.ColCount - 1);
 
-  Grid := TScheduleGrid.Create(Self);
+  Grid := TAnimatedGrid.Create(Self);
   with Grid do begin
     Parent := Self;
     Options := [goRowSizing, goHorzLine, goVertLine];
@@ -280,6 +347,7 @@ begin
     OnClick := @GridClick;
     OnMouseDown := @GridMouseDown;
     OnMouseMove := @GridMouseMove;
+    Animate := true;
   end;
 
   FilterPanel := TExpandPanel.Create(Self);
@@ -314,7 +382,7 @@ begin
     Left := 3;
     AutoSize := true;
     Align := alTop;
-    Items.AddStrings(GetColCaptions(Table.GetCols(cstAll, [coVisible])));
+    Items.AddStrings(GetColCaptions(SchTable.GetCols(cstAll, [coVisible])));
     for i := 0 to Items.Count - 1 do begin
       Checked[i] := true;
       VisibleColumns[i] := true;
@@ -322,18 +390,19 @@ begin
     OnItemClick := @CheckGroupClick;
   end;
 
-  FilterList := TFilterList.Create(FilterPanel, Table);
+  FilterList := TFilterList.Create(FilterPanel, SchTable);
   with FilterList do begin
     Parent := FilterPanel;
     Top := 5;
     Align := alTop;
     OnFilterAdd := @Self.OnFilterAdd;
     OnFilterDel := @Self.OnFilterDel;
+    OnFilterChange := @Self.OnFilterChange;
     OnHeightChange := @OnFilterHeightChange;
   end;
 
   with Query do begin
-    Table := Self.Table;
+    Table := SchTable;
     FilterList := Self.FIlterList;
   end;
 
@@ -344,7 +413,7 @@ begin
     OnDeleteClick := @OnDeleteBtnClick;
   end;
 
-  FColumns := Table.GetCols(cstAll, [coVisible]);
+  FColumns := SchTable.GetCols(cstAll, [coVisible]);
 
   XColumnBox.Items.AddStrings(GetColCaptions(FColumns));
   YColumnBox.Items.AddStrings(GetColCaptions(FColumns));
@@ -352,7 +421,7 @@ begin
   YColumnBox.ItemIndex := COL_DAY_ID;
   FillLookupResults();
   SetCaptions();
-  FillSQLResult();
+  FillItems();
 end;
 
 procedure TScheduleForm.RefreshButtonClick(Sender: TObject);
@@ -362,7 +431,7 @@ begin
     FilterPanel.Open();
     Exit;
   end;
-  FillSQLResult();
+  FillItems();
   Grid.Invalidate();
   FilterPanel.Close();
   SetDataIsActual();
@@ -373,6 +442,13 @@ begin
   FilterPanel.Open();
   VisibleColsPanel.Close();
   FilterList.Add();
+end;
+
+procedure TScheduleForm.ButtonExportClick(Sender: TObject);
+begin
+  SchExport.ExportToFile(Items, XTitles, YTitles,
+     FColumns[XColumnBox.ItemIndex], FColumns[YColumnBox.ItemIndex],
+     FilterList.GetFilterInfos(), FColumns);
 end;
 
 procedure TScheduleForm.FormClose(Sender: TObject; var CloseAction: TCloseAction);
@@ -386,7 +462,7 @@ var
   ListHeight: Integer;
 begin
   with LastSelectedCell do begin
-    ListHeight := GetListHeight(Row, Column);
+    ListHeight := GetListHeight(Row, Col);
     if Grid.RowHeights[Row] >= ListHeight then
       TargetHeight := ElementHeight
     else
@@ -411,8 +487,6 @@ var
   i: Integer;
 begin
   if (aRow > Length(YTitles)) or (aCol > Length(XTitles)) then Exit;
-  //if aRow = 0 then
-    //Canvas.TextRect(aRect, aRect.Left, aRect.Top, XTitles[aCol].Value);
   if (aCol = 0) and (aRow > 0) then begin
     Grid.Canvas.TextRect(aRect, aRect.Left, aRect.Top + (aRect.Bottom - aRect.Top) div 2 - 8, YTitles[aRow-1].Value);
   end;
@@ -420,15 +494,12 @@ begin
   if (aCol > 0) and (aRow > 0) then begin
     i := 0;
     RowBottom := aRect.Bottom;
-    while (i <= High(SQLResult[aRow-1][aCol-1])) and (aRect.Top < RowBottom) do begin
-      with ScheduleItem do begin
-        Canvas := Grid.Canvas;
-        Fields := SQLResult[aRow-1][aCol-1][i];
-        Height := ElementHeight;
-        BorderRect := aRect;
-        IsVisible := VisibleColumns;
-        aRect.Top += ElementHeight;
-        Draw();
+    if InRect(MousePos, aRect) then
+      EditCellBtns.Rect := Rect(aRect.Left, aRect.Top + ElementHeight*LastSelItem.Index, aRect.Right, aRect.Bottom);
+    while (i <= High(Items[aRow-1][aCol-1])) and (aRect.Top < RowBottom) do begin
+      with Items[aRow-1][aCol-1][i] do begin
+        BorderRect := Rect(aRect.Left, aRect.Top + ElementHeight*i, aRect.Right, aRect.Top + ElementHeight*(i+1));
+        Draw(Grid.Canvas);
       end;
       inc(i);
     end;
@@ -445,8 +516,8 @@ var
   col, row: Integer;
 begin
   Grid.MouseToCell(X, Y, col, row);
-  if (LastOpenedCell.Row = 0) or (LastOpenedCell.Column = 0) or
-     (LastOpenedCell.Row = row) and (LastOpenedCell.Column = col)
+  if (LastOpenedCell.Row = 0) or (LastOpenedCell.Col = 0) or
+     (LastOpenedCell.Row = row) and (LastOpenedCell.Col = col)
   then Exit;
     Grid.CloseRow(LastOpenedCell.Row);
 end;
@@ -456,30 +527,39 @@ procedure TScheduleForm.GridMouseMove(Sender: TObject; Shift: TShiftState; X,
 var
   col, row: Integer;
   CellRect: TRect;
+  CurrSelItem: TItemIndex;
 begin
-  {Grid.MouseToCell(X, Y, col, row);
+  Grid.MouseToCell(X, Y, col, row);
   CellRect := Grid.CellRect(col, row);
-  LastSelItemID := (Y - CellRect.Top) div ElementHeight;
-  with CellRect do
-    EditCellBtns.Rect := Rect(Left, Top + ElementHeight * LastSelItemID, Right - 70, Bottom + ElementHeight * LastSelItemID);}
+  CurrSelItem.Index := (Y - CellRect.Top) div ElementHeight;
+  CurrSelItem.Cell.Col := col;
+  CurrSelItem.Cell.Row := row;
+  if ItemByID(CurrSelItem) <> nil then begin
+    if ((LastSelItem.Index <> CurrSelItem.Index) or
+       (LastSelItem.Cell.Col <> CurrSelItem.Cell.Col) or
+       (LastSelItem.Cell.Row <> CurrSelItem.Cell.Row)) and
+       (ItemByID(LastSelItem) <> nil) then
+         ItemByID(LastSelItem).DrawBtn := false;
+    ItemByID(CurrSelItem).DrawBtn := true;
+    LastSelItem := CurrSelItem;
+  end;
+  MousePos.X := X;
+  MousePos.Y := Y;
 end;
 
 procedure TScheduleForm.GridSelectCell(Sender: TObject; aCol, aRow: Integer;
   var CanSelect: Boolean);
 begin
-  //(SQLResult = nil) or (aRow-1 > High(YTitles)) or (aCol > High(XTitles))
-  if (SQLResult = nil) or (aRow < 0) or (aCol < 0) or
-     (aRow-1 > High(SQLResult)) or (aCol-1 > High(SQLResult[aRow-1])) then
+  if (Items = nil) or (aRow < 0) or (aCol < 0) or
+     (aRow-1 > High(Items)) or (aCol-1 > High(Items[aRow-1])) then
     Exit;
 
-  {if (LastSelectedCell.Row <> aRow) and (LastSelectedCell.Row > 0) and (LastSelectedCell.Column > 0) then
-    Grid.CloseRow(LastSelectedCell.Row); }
-
   with LastSelectedCell do begin
-    Column := aCol;
+    Col := aCol;
     Row := aRow;
   end;
-  //Memo1.Text := SQLResult[aRow-1][aCol-1];
+
+  EditCellBtns.Rect := Grid.CellRect(aCol, aRow);
 end;
 
 procedure TScheduleForm.CheckGroupClick(Sender: TObject; Index: Integer);
@@ -501,20 +581,22 @@ end;
 
 procedure TScheduleForm.OnInsertBtnClick(Sender: TObject);
 begin
-  with LastSelectedCell do
-    EditForms.ShowEditForm(Self, Table, 0, @RefreshButtonClick);
+  with TScheduleItem(Sender) do
+    EditForms.ShowEditForm(Self, SchTable, 0, @RefreshButtonClick, [XColVal, YColVal]);
 end;
 
 procedure TScheduleForm.OnEditBtnClick(Sender: TObject);
 begin
-  with LastSelectedCell do
-    //EditForms.ShowEditForm(Self, Table, StrToInt(SQLResult[Row-1][Column-1][LastSelItemID][COL_ID]), @RefreshButtonClick);
+  with TScheduleItem(Sender) do
+    EditForms.ShowEditForm(Self, SchTable, ItemByID(LastSelItem).ItemID, @RefreshButtonClick, [XColVal, YColVal]);
 end;
 
 procedure TScheduleForm.OnDeleteBtnClick(Sender: TObject);
 begin
-  with LastSelectedCell do
-    //QueryCreator.DeleteRecordByID(StrToInt(SQLResult[Row-1][Column-1][LastSelItemID][COL_ID]), SQLQuery);
+  with TScheduleItem(Sender) do begin
+
+
+  end;
   RefreshButtonClick(Self);
 end;
 
@@ -536,6 +618,11 @@ begin
   FilterPanel.Height := FilterList.Height;
 end;
 
+procedure TScheduleForm.OnFilterChange(Sender: TObject);
+begin
+  SetDataIsNotActual();
+end;
+
 procedure TScheduleForm.OpenHideColumnsPanelClick(Sender: TObject);
 begin
   FilterPanel.Close();
@@ -549,7 +636,7 @@ procedure TScheduleForm.XColumnBoxChange(Sender: TObject);
 begin
   FillXTitles();
   SetColumnCaptions();
-  FillSQLResult();
+  FillItems();
   Grid.Refresh();
 end;
 
@@ -557,7 +644,7 @@ procedure TScheduleForm.YColumnBoxChange(Sender: TObject);
 begin
   FillYTitles();
   SetRowCaptions();
-  FillSQLResult();
+  FillItems();
   Grid.Refresh();
 end;
 
@@ -581,7 +668,7 @@ end;
 
 function TScheduleForm.CreateLookupQuery(ColumnIndex: Integer): TSQLQueryCreator;
 begin
-  Result := TSQLQueryCreator.Create(TTableInfo(Table.Columns[ColumnIndex].RefTable));
+  Result := TSQLQueryCreator.Create(TTableInfo(SchTable.Columns[ColumnIndex].RefTable));
   Result.SelectCols(cstOwn);
   Result.SetOrderBy([COL_ID]);
   Result.SendQuery();
@@ -591,6 +678,16 @@ procedure TScheduleForm.SendQuery();
 begin;
   Query.SelectCols(cstOwn);
   Query.SendQuery();
+end;
+
+procedure TScheduleForm.ClearItems;
+var
+  i, j, k, z: Integer;
+begin
+  for i := 0 to High(Items) do
+    for j := 0 to High(Items[i]) do
+      for k := 0 to High(Items[i][j]) do
+         FreeAndNIl(Items[i][j][k]);
 end;
 
 procedure TScheduleForm.SetColumnCaptions();
@@ -613,7 +710,7 @@ end;
 
 function TScheduleForm.GetListHeight(aRow, aCol: Integer): Integer;
 begin
-  Result := Max(Length(SQLResult[aRow-1][aCol-1])*ElementHeight, ElementHeight);
+  Result := Max(Length(Items[aRow-1][aCol-1])*ElementHeight, ElementHeight);
 end;
 
 function TScheduleForm.GetLookupResult(aColIndex: Integer): TLookupResult;
@@ -636,14 +733,35 @@ begin
   FreeAndNil(LookupQuery);
 end;
 
+function TScheduleForm.GetXColInfo(aColIndex: Integer): TCOlumnInfo;
+begin
+  Result := SchTable.Columns[XColumnBox.ItemIndex];
+end;
+
+function TScheduleForm.GetYColInfo(aRowIndex: Integer): TCOlumnInfo;
+begin
+  Result := SchTable.Columns[YColumnBox.ItemIndex];
+end;
+
+function TScheduleForm.ItemByID(aItemID: TItemIndex): TScheduleItem;
+begin
+  with aItemId do begin
+    if (Cell.Row <= 0) or (Cell.Row-1 > High(Items)) or
+       (Cell.Col <= 0) or (Cell.Col-1 > High(Items[Cell.Row-1])) or
+       (Index < 0) or (Index > High(Items[Cell.Row-1][Cell.Col-1]))
+         then Exit(nil);
+    Result := Items[Cell.Row-1][Cell.Col-1][Index];
+  end;
+end;
+
 procedure TScheduleForm.FillXTitles();
 begin
-  XTitles := GetLookupResult(XColumnBox.ItemIndex);
+  XTitles := GetLookupResult(SchTable.GetOwnColByRef(FColumns[XColumnBox.ItemIndex]).ID);
 end;
 
 procedure TScheduleForm.FillYTitles();
 begin
-  YTitles := GetLookupResult(YColumnBox.ItemIndex);
+  YTitles := GetLookupResult(SchTable.GetOwnColByRef(FColumns[YColumnBox.ItemIndex]).ID);
 end;
 
 procedure TScheduleForm.FillLookupResults();
@@ -652,56 +770,126 @@ begin
   FillYTitles();
 end;
 
-procedure TScheduleForm.FillSQLResult();
+procedure TScheduleForm.FillItems();
 var
   i, j, k: Integer;
   YFieldID, XFieldID, ColumnLen: Integer;
   XIDCol, YIDCol: TColumnInfo;
   XLen, YLen: Integer;
+  ColVal: TColumnVal;
 begin
   XLen := Length(XTitles);
   YLen := Length(YTitles);
   ColumnLen := Length(FColumns);
-  XIDCol := Table.GetOwnColByRef(FColumns[XColumnBox.ItemIndex]);
-  YIDCol := Table.GetOwnColByRef(FColumns[YColumnBox.ItemIndex]);
+  XIDCol := SchTable.GetOwnColByRef(FColumns[XColumnBox.ItemIndex]);
+  YIDCol := SchTable.GetOwnColByRef(FColumns[YColumnBox.ItemIndex]);
   Query.SelectCols(cstAll);
-  Query.SetOrderBy([YIDCol, XIDCol, Table.GetColByName('time_id')]);
+  Query.SetOrderBy([YIDCol, XIDCol, SchTable.GetColByName('time_id')]);
   Query.SendQuery();
   XFieldID := Query.SQLQuery.FieldByName(XIDCol.AliasName()).Index;
   YFieldID := Query.SQLQuery.FieldByName(YIDCol.AliasName()).Index;
 
-  SQLResult := nil;
-  SetLength(SQLResult, YLen);
+  ClearItems();
+  Items := nil;
+  SetLength(Items, YLen);
   for i := 0 to YLen - 1 do
-    SetLength(SQLResult[i], XLen);
+    SetLength(Items[i], XLen);
   i := 0;
   j := 0;
   with Query.SQLQuery do
     while not EOF do begin
       while Fields[YFieldID].AsInteger > YTitles[i].ID do begin inc(i); j := 0; end;
       while Fields[XFieldID].AsInteger > XTitles[j].ID do inc(j);
-      SetLength(SQLResult[i][j], Length(SQLResult[i][j]) + 1);
-      SetLength(SQLResult[i][j][High(SQLResult[i][j])], ColumnLen);
-      for k := 0 to ColumnLen - 1 do begin
-        SQLResult[i][j][High(SQLResult[i][j])][k] := FieldByName(FColumns[k].AliasName).AsString;
-        //ShowMessage(FieldByName(FColumns[k].AliasName).AsString);
+      SetLength(Items[i][j], Length(Items[i][j]) + 1);
+      Items[i][j][High(Items[i][j])] := TScheduleItem.Create(Grid, FieldByName(SchTable.GetPrimaryCol.AliasName).AsInteger);
+      SetLength(Items[i][j][High(Items[i][j])].Fields, ColumnLen);
+      with Items[i][j][High(Items[i][j])] do begin
+        OnInsertClick := @OnInsertBtnClick;
+        OnEditClick := @OnEditBtnClick;
+        OnDeleteClick := @OnDeleteBtnClick;
+        Height := ElementHeight;
+
+        ColVal.ColumnInfo := XIDCol;
+        ColVal.Value := Query.SQLQuery.Fields[XFieldID].AsInteger;
+        XColVal := ColVal;
+
+        ColVal.ColumnInfo := YIDCol;
+        ColVal.Value := Query.SQLQuery.Fields[YFieldID].AsInteger;
+        YColVal := ColVal;
+
+        VisibleColIDs := @VisibleColumns;
+
+        for k := 0 to ColumnLen - 1 do begin
+          if FColumns[k].FieldType = ftDate then
+            Items[i][j][High(Items[i][j])].Fields[k] := FormatDateTime('hh:mm', FieldByName(FColumns[k].AliasName).AsDateTime)
+          else
+            Items[i][j][High(Items[i][j])].Fields[k] := FieldByName(FColumns[k].AliasName).AsString;
+          //ShowMessage(FieldByName(FColumns[k].AliasName).AsString);
+        end;
       end;
       Next();
     end;
 end;
 
-procedure TScheduleItem.Draw();
+procedure TScheduleItem.EditClick(Sender: TObject);
 begin
-  Draw(0);
+  if FOnEditClick <> nil then FOnEditClick(Self);
 end;
 
-procedure TScheduleItem.Draw(aOffset: Integer);
+procedure TScheduleItem.InsertClick(Sender: TObject);
+begin
+  if FOnInsertClick <> nil then FOnInsertClick(Self);
+end;
+
+procedure TScheduleItem.DeleteClick(Sender: TObject);
+begin
+  if FOnDeleteClick <> nil then FOnDeleteClick(Self);
+end;
+
+procedure TScheduleItem.SetRect(aRect: TRect);
+begin
+  FEditCellBtns.Rect := aRect;
+  FBorderRect := aRect;
+end;
+
+procedure TScheduleItem.SetDrawBtn(aVal: boolean);
+begin
+  FEditCellBtns.Visible := aVal;
+end;
+
+function TScheduleItem.GetDrawBtn: boolean;
+begin
+  Result := FEditCellBtns.Visible;
+end;
+
+constructor TScheduleItem.Create(aOwner: TWinControl; aItemID: Integer);
+begin
+  FOwner := aOwner;
+  FItemID := aItemID;
+  FEditCellBtns := TEditCellBtns.Create(aOwner);
+  with FEditCellBtns do begin
+    OnEditClick := @EditClick;
+    OnInsertClick := @InsertClick;
+    OnDeleteClick := @DeleteClick;
+  end;
+end;
+
+destructor TScheduleItem.Destroy;
+begin
+  FreeAndNil(FEditCellBtns);
+end;
+
+procedure TScheduleItem.Draw(aCanvas: TCanvas);
 const
   Space = 5;
   RoomNameWidth = 50;
+  DayNameWidth = 80;
   DayNameHeight = 20;
+  WeekWidth = 60;
   SubjNameHeight = 30;
   SubjTypeWidth = 50;
+  TimeWith = 40;
+  GroupWidth = 50;
   MinFontSize = 8;
   MaxFontSize = 14;
 var
@@ -711,33 +899,26 @@ var
   SubjNameRect: TRect;
   ProfessorNameRect: TRect;
   DayRect: TRect;
+  WeekRect: TRect;
   BeginTimeRect: TRect;
+  EndTimeRect: TRect;
+  GroupRect: TRect;
   RoomRect: TRect;
-  TextStyle: TTextStyle;
 begin
   if Height = 0 then
     Height := BorderRect.Bottom - BorderRect.Top;
 
-  ElementRect := Rect(BorderRect.Left, BorderRect.Top + aOffset, BorderRect.Right, BorderRect.Top + aOffset + Height);
-  DayRect := Rect(ElementRect.Left, ElementRect.Top, ElementRect.Right- RoomNameWidth, ElementRect.Top + DayNameHeight);
-  BeginTimeRect := Rect(DayRect.Right, DayRect.Top, ElementRect.Right, DayRect.Bottom);
+  ElementRect := BorderRect;
+  DayRect := Rect(ElementRect.Left, ElementRect.Top, ElementRect.Left + DayNameWidth, ElementRect.Top + DayNameHeight);
+  WeekRect := Rect(DayRect.Right, DayRect.Top, DayRect.Right + WeekWidth, DayRect.Bottom);
+  BeginTimeRect := Rect(WeekRect.Right, WeekRect.Top, WeekRect.Right + TimeWith, WeekRect.Bottom);
+  EndTimeRect := Rect(BeginTimeRect.Right, DayRect.Top, BeginTimeRect.Right + TimeWith, WeekRect.Bottom);
   SubjNameRect := Rect(ElementRect.Left, DayRect.Bottom, ElementRect.Right - SubjTypeWidth, DayRect.Bottom + SubjNameHeight);
   SubjTypeRect := Rect(SubjNameRect.Right, SubjNameRect.Top, ElementRect.Right, SubjNameRect.Bottom);
-  ProfessorNameRect := Rect(ElementRect.Left, SubjNameRect.Bottom, ElementRect.Right - RoomNameWidth, ElementRect.Bottom);
-  RoomRect := Rect(ProfessorNameRect.Right, ProfessorNameRect.Top, ElementRect.Right, ProfessorNameRect.Bottom);
-  with TextStyle do begin
-    Wordbreak := false;
-    Layout := tlCenter;
-    Clipping := false;
-    SingleLine := false;
-    ExpandTabs := false;
-    ShowPrefix := false;
-    Opaque := false;
-    SystemFont := false;
-    RightToLeft := false;
-    EndEllipsis := false;
-  end;
-  with Canvas do begin
+  ProfessorNameRect := Rect(ElementRect.Left, SubjNameRect.Bottom, ElementRect.Right - RoomNameWidth - GroupWidth, ElementRect.Bottom);
+  GroupRect := Rect(ProfessorNameRect.Right, ProfessorNameRect.Top, ProfessorNameRect.Right + RoomNameWidth, ProfessorNameRect.Bottom);
+  RoomRect := Rect(GroupRect.Right, ProfessorNameRect.Top, ElementRect.Right, ProfessorNameRect.Bottom);
+  with aCanvas do begin
     Pen.Width := 1;
     Pen.Color := clGray;
     {Brush.Color := RGBToColor(230, 230, 230);
@@ -751,23 +932,53 @@ begin
     Rectangle(SubjNameRect);
     Rectangle(SubjTypeRect);
     Rectangle(ProfessorNameRect);
+    Rectangle(GroupRect);
     Rectangle(RoomRect);}
     //SubjTypeWidth := TextWidth(FFields[COL_SUBJECT_TYPE_ID]);
     Font.Size := 8;
-    if IsVisible[COL_DAY_ID] then
-      TextRect(DayRect, DayRect.Left + Space, DayRect.Top, Fields[COL_DAY_ID]);
-    if IsVisible[COL_TIME_BEGIN_ID] then
-      TextRect(BeginTimeRect, BeginTimeRect.Left + Space, BeginTimeRect.Top, Fields[COL_TIME_BEGIN_ID]);
+    //DrawText(aCanvas.Handle, PChar(Fields[COL_DAY_ID]), Length(Fields[COL_DAY_ID]), ElementRect, 0);
+    {if VisibleColIDs[COL_DAY_ID] then
+      DrawText(Handle, PChar(Fields[COL_DAY_ID]), Length(Fields[COL_DAY_ID]), ElementRect, 0);
+    if VisibleColIDs[COL_WEEK_ID] then
+      DrawText(Handle, PChar(Fields[COL_WEEK_ID]), Length(Fields[COL_WEEK_ID]), WeekRect, 0);
+    if VisibleColIDs[COL_TIME_BEGIN_ID] then
+      DrawText(Handle, PChar(Fields[COL_TIME_BEGIN_ID]), Length(Fields[COL_TIME_BEGIN_ID]), BeginTimeRect, 0);
+    if VisibleColIDs[COL_TIME_END_ID] then
+      DrawText(Handle, PChar(Fields[COL_TIME_END_ID]), Length(Fields[COL_TIME_END_ID]), EndTimeRect, 0);
     Font.Size := 14;
-    if IsVisible[COL_SUBJECT_TYPE_ID] then
+    if VisibleColIDs[COL_SUBJECT_TYPE_ID] then
+      DrawText(Handle, PChar(Fields[COL_SUBJECT_TYPE_ID]), Length(Fields[COL_SUBJECT_TYPE_ID]), SubjTypeRect, 0);
+    Font.Size := Max(Min(Round((SubjNameRect.Right - SubjNameRect.Left) / TextWidth(Fields[COL_SUBJECT_ID]) * Font.Size), MaxFontSize), MinFontSize);
+    if VisibleColIDs[COL_SUBJECT_ID] then
+      DrawText(Handle, PChar(Fields[COL_SUBJECT_ID]), Length(Fields[COL_SUBJECT_ID]), SubjNameRect, 0);
+    Font.Size := 8;
+    if VisibleColIDs[COL_PROFESSOR_ID] then
+      DrawText(Handle, PChar(Fields[COL_PROFESSOR_ID]), Length(Fields[COL_PROFESSOR_ID]), ProfessorNameRect, 0);
+    if VisibleColIDs[COL_GROUP_ID] then
+      DrawText(Handle, PChar(Fields[COL_GROUP_ID]), Length(Fields[COL_GROUP_ID]), GroupRect, 0);
+    if VisibleColIDs[COL_ROOM_ID] then
+      DrawText(Handle, PChar(Fields[COL_ROOM_ID]), Length(Fields[COL_ROOM_ID]), RoomRect, 0); }
+
+    if (VisibleColIDs)^[COL_DAY_ID] then
+      TextRect(DayRect, DayRect.Left + Space, DayRect.Top, Fields[COL_DAY_ID]);
+    if (VisibleColIDs)^[COL_WEEK_ID] then
+      TextRect(WeekRect, WeekRect.Left + Space, WeekRect.Top, Fields[COL_WEEK_ID]);
+    if (VisibleColIDs)^[COL_TIME_BEGIN_ID] then
+      TextRect(BeginTimeRect, BeginTimeRect.Left + Space, BeginTimeRect.Top, Fields[COL_TIME_BEGIN_ID] + ' - ');
+    if (VisibleColIDs)^[COL_TIME_END_ID] then
+      TextRect(EndTimeRect, EndTimeRect.Left + Space, EndTimeRect.Top, Fields[COL_TIME_END_ID]);
+    Font.Size := 14;
+    if (VisibleColIDs)^[COL_SUBJECT_TYPE_ID] then
       TextRect(SubjTypeRect, SubjTypeRect.Left + Space, SubjTypeRect.Top, Fields[COL_SUBJECT_TYPE_ID]);
     Font.Size := Max(Min(Round((SubjNameRect.Right - SubjNameRect.Left) / TextWidth(Fields[COL_SUBJECT_ID]) * Font.Size), MaxFontSize), MinFontSize);
-    if IsVisible[COL_SUBJECT_ID] then
+    if (VisibleColIDs)^[COL_SUBJECT_ID] then
       TextRect(SubjNameRect, SubjNameRect.Left + Space, SubjNameRect.Top, Fields[COL_SUBJECT_ID], TextStyle);
     Font.Size := 8;
-    if IsVisible[COL_PROFESSOR_ID] then
+    if (VisibleColIDs)^[COL_PROFESSOR_ID] then
       TextRect(ProfessorNameRect, ProfessorNameRect.Left + Space, ProfessorNameRect.Top, Fields[COL_PROFESSOR_ID]);
-    if IsVisible[COL_ROOM_ID] then
+    if (VisibleColIDs)^[COL_GROUP_ID] then
+      TextRect(GroupRect, GroupRect.Left + Space, GroupRect.Top, Fields[COL_GROUP_ID]);
+    if (VisibleColIDs)^[COL_ROOM_ID] then
       TextRect(RoomRect, RoomRect.Left + Space, RoomRect.Top, Fields[COL_ROOM_ID]);
   end;
 end;
@@ -797,7 +1008,7 @@ begin
       Canvas := FCanvas;
       Height := ElemHeight;
       Fields := FStringsArr[i];
-      Fill := true;
+      //Fill := true;
     end;
 end;
 
@@ -818,7 +1029,7 @@ begin
   for i := 0 to High(FItems) do
     with FItems[i] do begin
       BorderRect := Rect(FRect.Left, FRect.Top + i * ElemHeight, FRect.Right, FRect.Bottom + i * ElemHeight);
-      Draw();
+      Draw(Canvas);
     end;
 end;
 
@@ -848,6 +1059,9 @@ begin
   FStringsArr := aStringsArr;
   InitItems();
 end;
+
+initialization
+SchTable := ListOfTables.GetTableByName('Schedule_Items');
 
 end.
 

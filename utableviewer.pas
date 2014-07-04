@@ -36,6 +36,7 @@ type
     procedure SortByLabelClick(Sender: TObject);
     procedure SortOrderButtonClick(Sender: TObject);
     procedure RefreshButtonClick(Sender: TObject);
+    procedure OnEditBtnClick(Sender: TObject);
   private
     Table: TTableInfo;
     FColsToShow: TColumnInfos;
@@ -99,6 +100,12 @@ begin
   Query.ShowItems(DBGrid);
 end;
 
+procedure TGridForm.OnEditBtnClick(Sender: TObject);
+begin
+  Query.SQLQuery.Locate(Table.GetPrimaryCol.AliasName(), TEditForm(Sender).RecordID, []);
+  RefreshButtonClick(Sender);
+end;
+
 procedure TGridForm.AddFilterButtonClick(Sender: TObject);
 begin
   FilterList.Add();
@@ -106,12 +113,12 @@ end;
 
 procedure TGridForm.AddRecordButtonClick(Sender: TObject);
 begin
-  EditForms.ShowEditForm(Self, Table, 0, @RefreshButtonClick);
+  EditForms.ShowEditForm(Self, Table, 0, @OnEditBtnClick);
 end;
 
 procedure TGridForm.DBGridDblClick(Sender: TObject);
 begin
-  EditForms.ShowEditForm(Self, Table, Query.GetCurrID, @RefreshButtonClick);
+  EditForms.ShowEditForm(Self, Table, Query.GetCurrID, @OnEditBtnClick);
 end;
 
 procedure TGridForm.DelRecordButtonClick(Sender: TObject);

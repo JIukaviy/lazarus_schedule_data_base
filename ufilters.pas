@@ -12,16 +12,19 @@ type
 
   TCondition = object
     FormatStr: String;
-    Condition: String;
+    SQLStr: String;
     Caption: String;
   end;
 
   TConditions = array of TCondition;
 
-  TFilterInfo = record
+  { TFilterInfo }
+
+  TFilterInfo = object
     Column: TColumnInfo;
-    Condition: String;
+    Condition: TCondition;
     Value: String;
+    function SQLValue(): String;
   end;
 
   TFilterInfos = array of TFilterInfo;
@@ -30,6 +33,7 @@ type
 
   TFilter = class
   private
+    FOnChange: TNotifyEvent;
     FPanel: TPanel;
     FField: TCombobox;
     FConditionCmbBox: TCombobox;
@@ -50,8 +54,9 @@ type
     procedure SetParent(aParent: TWinControl);
     procedure SetButton(aButton: TSpeedButton);
     procedure SetAlign(aAlign: TAlign);
+    procedure SetOnChange(aEvent: TNotifyEvent);
     function GetCurrCondition(): TCondition;
-    procedure OnItemSelect(Sender: TObject);
+    procedure OnColSelect(Sender: TObject);
   public
     constructor Create(aOwner: TWinControl; aTableInfo: TTableInfo);
     destructor Destroy(); override;
@@ -66,6 +71,7 @@ type
     property Parent: TWinControl read FParent write SetParent;
     property Button: TSpeedButton read FButton write SetButton;
     property Align: TAlign read FAlign write SetAlign;
+    property OnChange: TNotifyEvent read FOnChange write SetOnChange;
   end;
 
   TFilters = array of TFilter;
@@ -87,11 +93,13 @@ type
     FOnHeightChange: TNotifyEvent;
     FOnFilterDel: TNotifyEvent;
     FOnFilterAdd: TNotifyEvent;
+    FOnFilterChange: TNotifyEvent;
     procedure SetLeft(aLeft: integer);
     procedure SetTop(aTop: integer);
     procedure SetWidth(aWidth: integer);
     procedure SetParent(aParent: TWinControl);
     procedure SetAlign(aAlign: TAlign);
+    procedure SetOnFilterChange(aEvent: TNotifyEvent);
     procedure UpdatePos();
     function CreateButton(ImageName: string; aOnClick: TNotifyEvent;
       aTag: integer): TSpeedButton;
@@ -114,6 +122,7 @@ type
     property OnHeightChange: TNotifyEvent read FOnHeightChange write FOnHeightChange;
     property OnFilterDel: TNotifyEvent read FOnFilterDel write FOnFilterDel;
     property OnFilterAdd:  TNotifyEvent read FOnFilterAdd write FOnFilterAdd;
+    property OnFilterChange: TNotifyEvent read FOnFilterChange write SetOnFilterChange;
     property Align: TAlign read FAlign write SetAlign;
     property Count: Integer read GetFiltersCount;
   end;
@@ -125,14 +134,14 @@ implementation
 var
   Conditions: array of TConditions;
 
-procedure AddCondition(aType: TFieldType; aCondition, aCaption: String; aFormatStr: String = '%');
+procedure AddCondition(aType: TFieldType; aCondition, aCaption: String; aFormatStr: String = '%s');
 var
   i: Integer;
 begin
   i := Integer(aType);
   SetLength(Conditions[i], Length(Conditions[i]) + 1);
   with Conditions[i][High(Conditions[i])] do begin
-    Condition := aCondition;
+    SQLStr := aCondition;
     Caption := aCaption;
     FormatStr := aFormatStr;
   end;
@@ -166,9 +175,16 @@ function CreateIdFilter(aTable: TTableInfo; aID: Integer): TFilterInfo;
 begin
   with Result do begin
     Column := aTable.Columns[COL_ID];
-    Condition := '=';
+    Condition := Conditions[Integer(ftInteger)][0];
     Value := IntToStr(aID);
   end;
+end;
+
+{ TFilterInfo }
+
+function TFilterInfo.SQLValue: String;
+begin
+  Result := Format(Condition.FormatStr, [Value]);
 end;
 
 constructor TFilter.Create(aOwner: TWinControl; aTableInfo: TTableInfo);
@@ -210,7 +226,7 @@ begin
     Items.AddStrings(GetColCaptions(FColumns));
     ReadOnly := True;
     Align := alLeft;
-    OnSelect := @Self.OnItemSelect;
+    OnSelect := @Self.OnColSelect;
     Constraints.MinWidth := 130;
   end;
 
@@ -225,11 +241,10 @@ end;
 
 function TFilter.GetFilterInfo(): TFilterInfo;
 begin
-  with Result do
-  begin
+  with Result do begin
     Column := FColumns[FField.ItemIndex];
-    Condition := GetCurrCondition.Condition;
-    Value := Format(GetCurrCondition.FormatStr, [FEdit.Text]);
+    Condition := GetCurrCondition();
+    Value := FEdit.Text;
   end;
 end;
 
@@ -292,6 +307,13 @@ begin
   FPanel.Align := aAlign;
 end;
 
+procedure TFilter.SetOnChange(aEvent: TNotifyEvent);
+begin
+  FOnChange := aEvent;
+  FEdit.OnChange := aEvent;
+  FConditionCmbBox.OnChange := aEvent;
+end;
+
 function TFilter.GetCurrCondition: TCondition;
 var
   Condtions: TConditions;
@@ -300,12 +322,13 @@ begin
   Result := Condtions[FConditionCmbBox.ItemIndex];
 end;
 
-procedure TFilter.OnItemSelect(Sender: TObject);
+procedure TFilter.OnColSelect(Sender: TObject);
 begin
-  with TComboBox(Sender) do begin
-    FConditionCmbBox.Items.Clear;
-    FConditionCmbBox.Items.AddStrings(GetConditionCaptions(FColumns[ItemIndex].FieldType));
+  with FConditionCmbBox.Items do begin
+    Clear;
+    AddStrings(GetConditionCaptions(FColumns[TComboBox(Sender).ItemIndex].FieldType));
   end;
+  if (FOnChange <> nil) and (CheckFields()) then FOnChange(Self);
 end;
 
 procedure TFilter.DelButton();
@@ -325,7 +348,7 @@ begin
   FreeAndNil(FEdit);
   FreeAndNil(FConditionCmbBox);
   FreeAndNil(FField);
-  DelButton();
+  FreeAndNil(FButton);
   FreeAndNil(FPanel);
   inherited;
 end;
@@ -364,6 +387,7 @@ begin
     //SetButton(CreateButton('Images\AddFilter.png', @OnAddClick, High(FFilters)));
     SetButton(CreateButton('Images\DelFilter.png', @OnDelClick, High(FFilters)));
     Align := alTop;
+    OnChange := FOnFilterChange;
   end;
 
   {if ArrLen > 0 then
@@ -381,8 +405,7 @@ begin
   if not InRange(Index, 0, High(FFilters)) then
     Exit;
   FreeAndNil(FFilters[Index]);
-  for i := Index to High(FFilters) - 1 do
-  begin
+  for i := Index to High(FFilters) - 1 do begin
     FFilters[i] := FFilters[i + 1];
     FFilters[i].ChangeTag(i);
   end;
@@ -488,6 +511,15 @@ procedure TFilterList.SetAlign(aAlign: TAlign);
 begin
   FAlign := aAlign;
   FPanel.Align := aAlign;
+end;
+
+procedure TFilterList.SetOnFilterChange(aEvent: TNotifyEvent);
+var
+  i: Integer;
+begin
+  FOnFilterChange := aEvent;
+  for i := 0 to High(FFilters) do
+    FFilters[i].OnChange := aEvent;
 end;
 
 destructor TFilterList.Destroy();

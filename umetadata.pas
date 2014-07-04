@@ -393,7 +393,7 @@ begin
     AddColumn('end_time',   'Конец',              ftDate,     70);
 
   Add('Дни недели', 'days').
-    AddColumn('name',       'День',               ftString,   100);
+    AddColumn('name',       'День недели',        ftString,   100);
 
   Add('Группы', 'groups').
     AddColumn('name',       'Группа',             ftString,   100).
@@ -407,12 +407,12 @@ begin
     AddColumn('name',       'Неделя',             ftString,   100);
 
   Add('Профессоры и предметы', 'professors_subjects').
-    AddColumn('professor_id',      GetTableByName('professors'),      [1]).
-    AddColumn('subject_id',        GetTableByName('subjects'), [1]);
+    AddColumn('professor_id',      GetTableByName('professors'),    [1]).
+    AddColumn('subject_id',        GetTableByName('subjects'),      [1]);
 
   Add('Предметы и группы', 'subjects_groups').
     AddColumn('subject_id',        GetTableByName('subjects'),      [1]).
-    AddColumn('group_id',          GetTableByName('groups'), [1]);
+    AddColumn('group_id',          GetTableByName('groups'),        [1]);
 
   Add('Расписание', 'schedule_items').
     AddColumn('subject_id',        GetTableByName('subjects'),      [1]).

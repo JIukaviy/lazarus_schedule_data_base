@@ -22,12 +22,11 @@ type
     procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure OKButtonClick(Sender: TObject);
   private
-    Query: TSQLQueryCreator;
-    Table: TTableInfo;
-    FieldEditors: array of TFieldEditor;
-    Columns: TColumnInfos;
-    IsEdit: boolean;
-    ID: Integer;
+    FQuery: TSQLQueryCreator;
+    FTable: TTableInfo;
+    FFieldEditors: array of TFieldEditor;
+    FColumns: TColumnInfos;
+    FID: Integer;
     FOnApply: TNotifyEvent;
     function GetNextID(): Integer;
     procedure InitAddForm();
@@ -35,10 +34,15 @@ type
     procedure SetOnApplyEvent(aOnApply: TNotifyEvent);
     procedure OnFieldValChange(Sender: TObject);
   public
-    constructor Create(aOwner: TWinControl; aTableInfo: TTableInfo; aID: Integer);
+    constructor Create(aOwner: TWinControl; aTableInfo: TTableInfo;
+      aID: Integer; const aColVals: array of TColumnVal);
+    constructor Create(aOwner: TWinControl; aTableInfo: TTableInfo; aID: Integer;
+      aColVals: TColumnVals = nil);
     destructor Destroy(); override;
     function CheckFields(): boolean;
     property OnApply: TNotifyEvent read FOnApply write SetOnApplyEvent;
+    property RecordID: Integer read FID;
+    property Table: TTableInfo read FTable;
   end;
 
   { TEditFormList }
@@ -50,7 +54,9 @@ type
     function FindForm(aID, aTableID: Integer): Integer;
   public
     procedure ShowEditForm(aOwner: TWinControl; aTableinfo: TTableInfo;
-                aID: Integer; aOnApply: TNotifyEvent);
+                aID: Integer; aOnApply: TNotifyEvent; aColVals: TColumnVals = nil);
+    procedure ShowEditForm(aOwner: TWinControl; aTableinfo: TTableInfo;
+                aID: Integer; aOnApply: TNotifyEvent; const aColVals: array of TColumnVal);
   end;
 
 var
@@ -77,12 +83,13 @@ var
 begin
   Result := -1;
   for i := 0 to High(FEditForms) do
-    if (FEditForms[i].ID = aID) and (FEditForms[i].Table.ID = aTableID) then
+    if (FEditForms[i].FID = aID) and (FEditForms[i].FTable.ID = aTableID) then
       Exit(i);
 end;
 
 procedure TEditFormList.ShowEditForm(aOwner: TWinControl;
-  aTableinfo: TTableInfo; aID: Integer; aOnApply: TNotifyEvent);
+  aTableinfo: TTableInfo; aID: Integer; aOnApply: TNotifyEvent;
+  aColVals: TColumnVals);
 var
   FormIndex: Integer;
 begin
@@ -91,12 +98,25 @@ begin
     FEditForms[FormIndex].Show()
   else begin
     SetLength(FEditForms, Length(FEditForms) + 1);
-    FEditForms[High(FEditForms)] := TEditForm.Create(aOwner, aTableInfo, aID);
+    FEditForms[High(FEditForms)] := TEditForm.Create(aOwner, aTableInfo, aID, aColVals);
     with FEditForms[High(FEditForms)] do begin
       OnApply := aOnApply;
       Show();
     end;
   end;
+end;
+
+procedure TEditFormList.ShowEditForm(aOwner: TWinControl;
+  aTableinfo: TTableInfo; aID: Integer; aOnApply: TNotifyEvent;
+  const aColVals: array of TColumnVal);
+var
+  ColVals: TColumnVals;
+  i: Integer;
+begin
+  SetLength(ColVals, Length(aColVals));
+  for i := 0 to High(aColVals) do
+    ColVals[i] := aColVals[i];
+  ShowEditForm(aOwner, aTableInfo, aID, aOnApply, ColVals);
 end;
 
 {$R *.lfm}
@@ -108,15 +128,15 @@ end;
 
 procedure TEditForm.ApplyButtonClick(Sender: TObject);
 begin
-  Query.SQLQuery.ApplyUpdates();
+  FQuery.SQLQuery.ApplyUpdates();
   ApplyButton.Enabled := false;
-  if FOnApply <> nil then FOnApply(Sender);
+  if FOnApply <> nil then FOnApply(Self);
 end;
 
 procedure TEditForm.AddButtonClick(Sender: TObject);
 begin
-  Query.SQLQuery.ApplyUpdates();
-  if FOnApply <> nil then FOnApply(Sender);
+  FQuery.SQLQuery.ApplyUpdates();
+  if FOnApply <> nil then FOnApply(Self);
   Self.Close();
 end;
 
@@ -128,7 +148,7 @@ end;
 procedure TEditForm.FormClose(Sender: TObject; var CloseAction: TCloseAction);
 begin
   CloseAction := caFree;
-  EditForms.DeleteFromList(ID, Table.ID);
+  EditForms.DeleteFromList(FID, FTable.ID);
 end;
 
 procedure TEditForm.OKButtonClick(Sender: TObject);
@@ -141,7 +161,7 @@ function TEditForm.GetNextID: Integer;
 var
   LookUpQuery: TSQLQueryCreator;
 begin
-  LookUpQuery := TSQLQueryCreator.Create(Table);
+  LookUpQuery := TSQLQueryCreator.Create(FTable);
   Result := LookUpQuery.GetNextID;
   FreeAndNil(LookUpQuery);
 end;
@@ -151,42 +171,59 @@ begin
   OKButton.Visible := false;
   ApplyButton.Caption := 'Добавить';
   ApplyButton.OnClick := @AddButtonClick;
-  Query.SQLQuery.UsePrimaryKeyAsKey := true;
-  Query.SelectCols(cstOwn);
-  Query.SendQuery();
-  Query.SQLQuery.Append();
-  Query.SQLQuery.Fields[COL_ID].Required := false;
-  isEdit := false;
+  FQuery.SQLQuery.UsePrimaryKeyAsKey := true;
+  FQuery.SelectCols(cstOwn);
+  FQuery.SendQuery();
+  FQuery.SQLQuery.Append();
+  FQuery.SQLQuery.Fields[COL_ID].Required := false;
+  Caption := 'Добавить';
 end;
 
 procedure TEditForm.InitEditForm(aID: Integer);
 begin
   ApplyButton.OnClick := @ApplyButtonClick;
-  Query.SelectCols(cstOwn);
-  Query.FilterById(aID);
-  Query.SendQuery();
+  FQuery.SelectCols(cstOwn);
+  FQuery.FilterById(aID);
+  FQuery.SendQuery();
+  FQuery.SQLQuery.Edit;
+  Caption := 'Редактировать';
 end;
 
-constructor TEditForm.Create(aOwner: TWinControl; aTableInfo: TTableInfo; aID: Integer);
+constructor TEditForm.Create(aOwner: TWinControl; aTableInfo: TTableInfo;
+  aID: Integer; const aColVals: array of TColumnVal);
+var
+  ColVals: TColumnVals;
+  i: Integer;
+begin
+  SetLength(ColVals, Length(aColVals));
+  for i := 0 to High(aColVals) do
+    ColVals[i] := aColVals[i];
+  Create(aOwner, aTableInfo, aID, aColVals);
+end;
+
+constructor TEditForm.Create(aOwner: TWinControl; aTableInfo: TTableInfo;
+  aID: Integer; aColVals: TColumnVals);
 var
   i: Integer;
 begin
   inherited Create(aOwner);
-  ID := aID;
-  Table := aTableInfo;
+  FID := aID;
+  FTable := aTableInfo;
   FOnApply := nil;
-  Columns := Table.GetCols(cstOwn, [coEditable]);
-  Query := TSQLQueryCreator.Create(aTableInfo);
+  FColumns := FTable.GetCols(cstOwn, [coEditable]);
+  FQuery := TSQLQueryCreator.Create(aTableInfo);
 
   if aID = 0 then
     InitAddForm()
   else
     InitEditForm(aID);
 
-  For i := 0 to High(Columns) do begin
-    SetLength(FieldEditors, Length(FieldEditors) + 1);
-    FieldEditors[High(FieldEditors)] := TFieldEditor.Create(Self, Columns[i], Query);
-    with FieldEditors[High(FieldEditors)] do begin
+  SetColVals(FQuery.SQLQuery, aColVals);
+
+  For i := 0 to High(FColumns) do begin
+    SetLength(FFieldEditors, Length(FFieldEditors) + 1);
+    FFieldEditors[High(FFieldEditors)] := TFieldEditor.Create(Self, FColumns[i], FQuery);
+    with FFieldEditors[High(FFieldEditors)] do begin
       Parent := Self;
       Align := alTop;
       OnChange := @OnFieldValChange;
@@ -199,8 +236,8 @@ var
   i: Integer;
 begin
   Result := true;
-  for i := 0 to High(FieldEditors) do
-    if not FieldEditors[i].CheckField() then Exit(false);
+  for i := 0 to High(FFieldEditors) do
+    if not FFieldEditors[i].CheckField() then Exit(false);
 end;
 
 procedure TEditForm.SetOnApplyEvent(aOnApply: TNotifyEvent);
@@ -212,8 +249,8 @@ destructor TEditForm.Destroy();
 var
   i: Integer;
 begin
-  for i := 0 to High(FieldEditors) do
-    FreeAndNil(FieldEditors[i]);
+  for i := 0 to High(FFieldEditors) do
+    FreeAndNil(FFieldEditors[i]);
   inherited;
 end;
 
