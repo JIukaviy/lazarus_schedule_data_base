@@ -96,6 +96,7 @@ type
   public
     VisibleColIDs: ^TVisibleColIDs;
     Fields: Strings;
+    Columns: TColumnInfos;
     constructor Create(aOwner: TWinControl; aItemID: Integer);
     destructor Destroy(); override;
     procedure Draw(aCanvas: TCanvas);
@@ -184,6 +185,7 @@ type
     procedure YColumnBoxChange(Sender: TObject);
     procedure SetDataIsActual();
     procedure SetDataIsNotActual();
+    procedure SetCurrElemHeight();
   private
     FilterPanel: TExpandPanel;
     VisibleColsPanel: TExpandPanel;
@@ -230,9 +232,11 @@ uses
 
 var
   SchTable: TTableInfo;
+  ElementHeight: Integer;
 
 const
-  ElementHeight = 70;
+  RowHeight = 20;
+  ColCaptionsHeight = 22;
 
 function InRect(aPoint: TPoint; aRect: TRect): boolean;
 begin
@@ -389,6 +393,8 @@ begin
     end;
     OnItemClick := @CheckGroupClick;
   end;
+
+  SetCurrElemHeight();
 
   FilterList := TFilterList.Create(FilterPanel, SchTable);
   with FilterList do begin
@@ -565,6 +571,7 @@ end;
 procedure TScheduleForm.CheckGroupClick(Sender: TObject; Index: Integer);
 begin
   VisibleColumns[Index] := TCheckGroup(Sender).Checked[Index];
+  SetCurrElemHeight();
   Grid.Invalidate();
 end;
 
@@ -703,9 +710,21 @@ end;
 procedure TScheduleForm.SetRowCaptions();
 begin
   Grid.RowCount := Length(YTitles) + 1;
-  Grid.RowHeights[0] := 22;
+  Grid.RowHeights[0] := ColCaptionsHeight;
   {for i := 0 to High(YTitles) do
     Grid.Rows[i+1].Text := YTitles[i].Value;}
+end;
+
+procedure TScheduleForm.SetCurrElemHeight;
+var
+  i: Integer;
+begin
+  ElementHeight := 30;
+  for i := 0 to High(VisibleColumns) do
+    if VisibleColumns[i] then
+       ElementHeight += RowHeight;
+  Grid.DefaultRowHeight := ElementHeight;
+  Grid.RowHeights[0] := ColCaptionsHeight;
 end;
 
 function TScheduleForm.GetListHeight(aRow, aCol: Integer): Integer;
@@ -825,6 +844,7 @@ begin
           else
             Items[i][j][High(Items[i][j])].Fields[k] := FieldByName(FColumns[k].AliasName).AsString;
           //ShowMessage(FieldByName(FColumns[k].AliasName).AsString);
+          Items[i][j][High(Items[i][j])].Columns := FColumns;
         end;
       end;
       Next();
@@ -881,106 +901,20 @@ end;
 
 procedure TScheduleItem.Draw(aCanvas: TCanvas);
 const
-  Space = 5;
-  RoomNameWidth = 50;
-  DayNameWidth = 80;
-  DayNameHeight = 20;
-  WeekWidth = 60;
-  SubjNameHeight = 30;
-  SubjTypeWidth = 50;
-  TimeWith = 40;
-  GroupWidth = 50;
-  MinFontSize = 8;
-  MaxFontSize = 14;
+  CellHeight = 20;
+  LeftSpace = 5;
 var
-  //SubjTypeWidth: Integer;
-  ElementRect: TRect;
-  SubjTypeRect: TRect;
-  SubjNameRect: TRect;
-  ProfessorNameRect: TRect;
-  DayRect: TRect;
-  WeekRect: TRect;
-  BeginTimeRect: TRect;
-  EndTimeRect: TRect;
-  GroupRect: TRect;
-  RoomRect: TRect;
+  i, CurrHeight: Integer;
 begin
-  if Height = 0 then
-    Height := BorderRect.Bottom - BorderRect.Top;
-
-  ElementRect := BorderRect;
-  DayRect := Rect(ElementRect.Left, ElementRect.Top, ElementRect.Left + DayNameWidth, ElementRect.Top + DayNameHeight);
-  WeekRect := Rect(DayRect.Right, DayRect.Top, DayRect.Right + WeekWidth, DayRect.Bottom);
-  BeginTimeRect := Rect(WeekRect.Right, WeekRect.Top, WeekRect.Right + TimeWith, WeekRect.Bottom);
-  EndTimeRect := Rect(BeginTimeRect.Right, DayRect.Top, BeginTimeRect.Right + TimeWith, WeekRect.Bottom);
-  SubjNameRect := Rect(ElementRect.Left, DayRect.Bottom, ElementRect.Right - SubjTypeWidth, DayRect.Bottom + SubjNameHeight);
-  SubjTypeRect := Rect(SubjNameRect.Right, SubjNameRect.Top, ElementRect.Right, SubjNameRect.Bottom);
-  ProfessorNameRect := Rect(ElementRect.Left, SubjNameRect.Bottom, ElementRect.Right - RoomNameWidth - GroupWidth, ElementRect.Bottom);
-  GroupRect := Rect(ProfessorNameRect.Right, ProfessorNameRect.Top, ProfessorNameRect.Right + RoomNameWidth, ProfessorNameRect.Bottom);
-  RoomRect := Rect(GroupRect.Right, ProfessorNameRect.Top, ElementRect.Right, ProfessorNameRect.Bottom);
-  with aCanvas do begin
-    Pen.Width := 1;
-    Pen.Color := clGray;
-    {Brush.Color := RGBToColor(230, 230, 230);
-    Brush.Style := bsSolid;
-    if Fill then
-      Rectangle(ElementRect);}
-    Line(ElementRect.Left, ElementRect.Bottom, ElementRect.Right, ElementRect.Bottom);
-    Pen.Color := clBlack;
-    {Rectangle(DayRect);
-    Rectangle(BeginTimeRect);
-    Rectangle(SubjNameRect);
-    Rectangle(SubjTypeRect);
-    Rectangle(ProfessorNameRect);
-    Rectangle(GroupRect);
-    Rectangle(RoomRect);}
-    //SubjTypeWidth := TextWidth(FFields[COL_SUBJECT_TYPE_ID]);
-    Font.Size := 8;
-    //DrawText(aCanvas.Handle, PChar(Fields[COL_DAY_ID]), Length(Fields[COL_DAY_ID]), ElementRect, 0);
-    {if VisibleColIDs[COL_DAY_ID] then
-      DrawText(Handle, PChar(Fields[COL_DAY_ID]), Length(Fields[COL_DAY_ID]), ElementRect, 0);
-    if VisibleColIDs[COL_WEEK_ID] then
-      DrawText(Handle, PChar(Fields[COL_WEEK_ID]), Length(Fields[COL_WEEK_ID]), WeekRect, 0);
-    if VisibleColIDs[COL_TIME_BEGIN_ID] then
-      DrawText(Handle, PChar(Fields[COL_TIME_BEGIN_ID]), Length(Fields[COL_TIME_BEGIN_ID]), BeginTimeRect, 0);
-    if VisibleColIDs[COL_TIME_END_ID] then
-      DrawText(Handle, PChar(Fields[COL_TIME_END_ID]), Length(Fields[COL_TIME_END_ID]), EndTimeRect, 0);
-    Font.Size := 14;
-    if VisibleColIDs[COL_SUBJECT_TYPE_ID] then
-      DrawText(Handle, PChar(Fields[COL_SUBJECT_TYPE_ID]), Length(Fields[COL_SUBJECT_TYPE_ID]), SubjTypeRect, 0);
-    Font.Size := Max(Min(Round((SubjNameRect.Right - SubjNameRect.Left) / TextWidth(Fields[COL_SUBJECT_ID]) * Font.Size), MaxFontSize), MinFontSize);
-    if VisibleColIDs[COL_SUBJECT_ID] then
-      DrawText(Handle, PChar(Fields[COL_SUBJECT_ID]), Length(Fields[COL_SUBJECT_ID]), SubjNameRect, 0);
-    Font.Size := 8;
-    if VisibleColIDs[COL_PROFESSOR_ID] then
-      DrawText(Handle, PChar(Fields[COL_PROFESSOR_ID]), Length(Fields[COL_PROFESSOR_ID]), ProfessorNameRect, 0);
-    if VisibleColIDs[COL_GROUP_ID] then
-      DrawText(Handle, PChar(Fields[COL_GROUP_ID]), Length(Fields[COL_GROUP_ID]), GroupRect, 0);
-    if VisibleColIDs[COL_ROOM_ID] then
-      DrawText(Handle, PChar(Fields[COL_ROOM_ID]), Length(Fields[COL_ROOM_ID]), RoomRect, 0); }
-
-    if (VisibleColIDs)^[COL_DAY_ID] then
-      TextRect(DayRect, DayRect.Left + Space, DayRect.Top, Fields[COL_DAY_ID]);
-    if (VisibleColIDs)^[COL_WEEK_ID] then
-      TextRect(WeekRect, WeekRect.Left + Space, WeekRect.Top, Fields[COL_WEEK_ID]);
-    if (VisibleColIDs)^[COL_TIME_BEGIN_ID] then
-      TextRect(BeginTimeRect, BeginTimeRect.Left + Space, BeginTimeRect.Top, Fields[COL_TIME_BEGIN_ID] + ' - ');
-    if (VisibleColIDs)^[COL_TIME_END_ID] then
-      TextRect(EndTimeRect, EndTimeRect.Left + Space, EndTimeRect.Top, Fields[COL_TIME_END_ID]);
-    Font.Size := 14;
-    if (VisibleColIDs)^[COL_SUBJECT_TYPE_ID] then
-      TextRect(SubjTypeRect, SubjTypeRect.Left + Space, SubjTypeRect.Top, Fields[COL_SUBJECT_TYPE_ID]);
-    Font.Size := Max(Min(Round((SubjNameRect.Right - SubjNameRect.Left) / TextWidth(Fields[COL_SUBJECT_ID]) * Font.Size), MaxFontSize), MinFontSize);
-    if (VisibleColIDs)^[COL_SUBJECT_ID] then
-      TextRect(SubjNameRect, SubjNameRect.Left + Space, SubjNameRect.Top, Fields[COL_SUBJECT_ID], TextStyle);
-    Font.Size := 8;
-    if (VisibleColIDs)^[COL_PROFESSOR_ID] then
-      TextRect(ProfessorNameRect, ProfessorNameRect.Left + Space, ProfessorNameRect.Top, Fields[COL_PROFESSOR_ID]);
-    if (VisibleColIDs)^[COL_GROUP_ID] then
-      TextRect(GroupRect, GroupRect.Left + Space, GroupRect.Top, Fields[COL_GROUP_ID]);
-    if (VisibleColIDs)^[COL_ROOM_ID] then
-      TextRect(RoomRect, RoomRect.Left + Space, RoomRect.Top, Fields[COL_ROOM_ID]);
-  end;
+  CurrHeight := 0;
+  aCanvas.Pen.Color := clBlack;
+  for i := 0 to High(Fields) do
+    if VisibleColIDs^[i] then begin
+      aCanvas.TextOut(BorderRect.Left + LeftSpace, BorderRect.Top + CurrHeight, Columns[i].Caption + ': ' + Fields[i]);
+      CurrHeight += CellHeight;
+    end;
+  aCanvas.Pen.Color := clGray;
+  aCanvas.Line(BorderRect.Left + LeftSpace, BorderRect.Top + CurrHeight, BorderRect.Right - LeftSpace, BorderRect.Top + CurrHeight);
 end;
 
 constructor TScheduleItemList.Create(aOwner: TWinControl);

@@ -1,13 +1,13 @@
 object ScheduleConflictsForm: TScheduleConflictsForm
-  Left = 1094
+  Left = 1008
   Height = 488
-  Top = 258
+  Top = 147
   Width = 493
   Caption = 'ScheduleConflictsForm'
   ClientHeight = 488
   ClientWidth = 493
   LCLVersion = '1.0.12.0'
-  object TreeView1: TTreeView
+  object ConflictsTreeView: TTreeView
     Left = 0
     Height = 488
     Top = 0

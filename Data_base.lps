@@ -75,7 +75,7 @@
         <UnitName Value="UFieldEditor"/>
         <EditorIndex Value="4"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="109"/>
+        <TopLine Value="104"/>
         <CursorPos X="44" Y="132"/>
         <UsageCount Value="200"/>
         <Loaded Value="True"/>
@@ -113,11 +113,10 @@
         <HasResources Value="True"/>
         <ResourceBaseClass Value="Form"/>
         <UnitName Value="UScheduleForm"/>
-        <IsVisibleTab Value="True"/>
         <EditorIndex Value="5"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="438"/>
-        <CursorPos X="45" Y="452"/>
+        <TopLine Value="696"/>
+        <CursorPos X="37" Y="706"/>
         <UsageCount Value="201"/>
         <Loaded Value="True"/>
         <LoadedDesigner Value="True"/>
@@ -139,8 +138,8 @@
         <UnitName Value="UAnimatedGrid"/>
         <EditorIndex Value="6"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="1"/>
-        <CursorPos X="56" Y="2"/>
+        <TopLine Value="25"/>
+        <CursorPos X="76" Y="41"/>
         <UsageCount Value="206"/>
         <Loaded Value="True"/>
       </Unit10>
@@ -151,11 +150,12 @@
         <HasResources Value="True"/>
         <ResourceBaseClass Value="Form"/>
         <UnitName Value="USchConflictsForm"/>
+        <IsVisibleTab Value="True"/>
         <EditorIndex Value="11"/>
         <WindowIndex Value="0"/>
         <TopLine Value="1"/>
-        <CursorPos X="73" Y="6"/>
-        <UsageCount Value="84"/>
+        <CursorPos X="31" Y="13"/>
+        <UsageCount Value="87"/>
         <Loaded Value="True"/>
         <LoadedDesigner Value="True"/>
       </Unit11>
@@ -167,7 +167,7 @@
         <WindowIndex Value="0"/>
         <TopLine Value="1"/>
         <CursorPos X="7" Y="15"/>
-        <UsageCount Value="80"/>
+        <UsageCount Value="83"/>
         <Loaded Value="True"/>
       </Unit12>
       <Unit13>
@@ -176,9 +176,9 @@
         <UnitName Value="UExport"/>
         <EditorIndex Value="9"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="227"/>
+        <TopLine Value="87"/>
         <CursorPos X="52" Y="247"/>
-        <UsageCount Value="47"/>
+        <UsageCount Value="50"/>
         <Loaded Value="True"/>
       </Unit13>
       <Unit14>
@@ -194,7 +194,7 @@
         <WindowIndex Value="0"/>
         <TopLine Value="935"/>
         <CursorPos X="1" Y="955"/>
-        <UsageCount Value="0"/>
+        <UsageCount Value="10"/>
       </Unit15>
       <Unit16>
         <Filename Value="C:\lazarus\lcl\include\control.inc"/>
@@ -214,8 +214,8 @@
         <Filename Value="C:\lazarus\lcl\grids.pas"/>
         <UnitName Value="Grids"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="2857"/>
-        <CursorPos X="14" Y="2820"/>
+        <TopLine Value="1368"/>
+        <CursorPos X="14" Y="1388"/>
         <UsageCount Value="22"/>
       </Unit18>
       <Unit19>
@@ -223,7 +223,7 @@
         <WindowIndex Value="0"/>
         <TopLine Value="107"/>
         <CursorPos X="10" Y="124"/>
-        <UsageCount Value="0"/>
+        <UsageCount Value="10"/>
       </Unit19>
       <Unit20>
         <Filename Value="C:\Langs\lazarus\lcl\grids.pas"/>
@@ -255,7 +255,7 @@
         <WindowIndex Value="0"/>
         <TopLine Value="1811"/>
         <CursorPos X="3" Y="1830"/>
-        <UsageCount Value="0"/>
+        <UsageCount Value="10"/>
       </Unit23>
       <Unit24>
         <Filename Value="ExpandPanel\uexpandpanel.pas"/>
@@ -271,28 +271,28 @@
         <WindowIndex Value="0"/>
         <TopLine Value="40"/>
         <CursorPos X="17" Y="56"/>
-        <UsageCount Value="0"/>
+        <UsageCount Value="10"/>
       </Unit25>
       <Unit26>
         <Filename Value="C:\lazarus\fpc\2.6.2\source\rtl\objpas\classes\classesh.inc"/>
         <WindowIndex Value="0"/>
         <TopLine Value="1664"/>
         <CursorPos X="16" Y="1684"/>
-        <UsageCount Value="0"/>
+        <UsageCount Value="10"/>
       </Unit26>
       <Unit27>
         <Filename Value="C:\lazarus\fpc\2.6.2\source\rtl\objpas\classes\compon.inc"/>
         <WindowIndex Value="0"/>
         <TopLine Value="99"/>
         <CursorPos X="14" Y="113"/>
-        <UsageCount Value="0"/>
+        <UsageCount Value="10"/>
       </Unit27>
       <Unit28>
         <Filename Value="C:\lazarus\lcl\include\customcheckgroup.inc"/>
         <WindowIndex Value="0"/>
         <TopLine Value="70"/>
         <CursorPos X="1" Y="89"/>
-        <UsageCount Value="0"/>
+        <UsageCount Value="10"/>
       </Unit28>
       <Unit29>
         <Filename Value="C:\lazarus\fpc\2.6.2\source\packages\fcl-db\src\base\db.pas"/>
@@ -323,124 +323,124 @@
     </General>
     <JumpHistory Count="30" HistoryIndex="29">
       <Position1>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="57" Column="1" TopLine="46"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="723" Column="1" TopLine="702"/>
       </Position1>
       <Position2>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="58" Column="1" TopLine="46"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="722" Column="1" TopLine="702"/>
       </Position2>
       <Position3>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="59" Column="1" TopLine="46"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="723" Column="1" TopLine="702"/>
       </Position3>
       <Position4>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="61" Column="1" TopLine="46"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="722" Column="1" TopLine="702"/>
       </Position4>
       <Position5>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="59" Column="67" TopLine="46"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="723" Column="1" TopLine="702"/>
       </Position5>
       <Position6>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="60" Column="75" TopLine="49"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="722" Column="1" TopLine="702"/>
       </Position6>
       <Position7>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="83" Column="37" TopLine="61"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="723" Column="1" TopLine="702"/>
       </Position7>
       <Position8>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="73" Column="61" TopLine="46"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="722" Column="1" TopLine="702"/>
       </Position8>
       <Position9>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="70" Column="1" TopLine="52"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="723" Column="1" TopLine="702"/>
       </Position9>
       <Position10>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="68" Column="62" TopLine="58"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="724" Column="1" TopLine="702"/>
       </Position10>
       <Position11>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="70" Column="1" TopLine="58"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="398" Column="1" TopLine="379"/>
       </Position11>
       <Position12>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="66" Column="24" TopLine="43"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="399" Column="1" TopLine="379"/>
       </Position12>
       <Position13>
-        <Filename Value="umetadata.pas"/>
-        <Caret Line="411" Column="63" TopLine="397"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="400" Column="1" TopLine="379"/>
       </Position13>
       <Position14>
         <Filename Value="uscheduleform.pas"/>
-        <Caret Line="418" Column="40" TopLine="78"/>
+        <Caret Line="401" Column="1" TopLine="379"/>
       </Position14>
       <Position15>
         <Filename Value="uscheduleform.pas"/>
-        <Caret Line="503" Column="72" TopLine="480"/>
+        <Caret Line="402" Column="1" TopLine="379"/>
       </Position15>
       <Position16>
         <Filename Value="uscheduleform.pas"/>
-        <Caret Line="97" Column="21" TopLine="81"/>
+        <Caret Line="403" Column="1" TopLine="379"/>
       </Position16>
       <Position17>
         <Filename Value="uscheduleform.pas"/>
-        <Caret Line="823" Column="41" TopLine="797"/>
+        <Caret Line="404" Column="1" TopLine="379"/>
       </Position17>
       <Position18>
         <Filename Value="uscheduleform.pas"/>
-        <Caret Line="965" Column="21" TopLine="950"/>
+        <Caret Line="405" Column="1" TopLine="397"/>
       </Position18>
       <Position19>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="38" Column="17" TopLine="22"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="406" Column="1" TopLine="397"/>
       </Position19>
       <Position20>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="40" Column="16" TopLine="20"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="421" Column="1" TopLine="397"/>
       </Position20>
       <Position21>
         <Filename Value="uscheduleform.pas"/>
-        <Caret Line="961" Column="99" TopLine="838"/>
+        <Caret Line="423" Column="1" TopLine="397"/>
       </Position21>
       <Position22>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="92" Column="71" TopLine="67"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="424" Column="1" TopLine="397"/>
       </Position22>
       <Position23>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="85" Column="86" TopLine="70"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="425" Column="1" TopLine="397"/>
       </Position23>
       <Position24>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="63" Column="41" TopLine="47"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="426" Column="1" TopLine="397"/>
       </Position24>
       <Position25>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="82" Column="64" TopLine="69"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="573" Column="21" TopLine="563"/>
       </Position25>
       <Position26>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="85" Column="71" TopLine="69"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="346" Column="21" TopLine="363"/>
       </Position26>
       <Position27>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="84" Column="61" TopLine="69"/>
+        <Filename Value="uanimatedgrid.pas"/>
+        <Caret Line="240" Column="3" TopLine="210"/>
       </Position27>
       <Position28>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="82" Column="86" TopLine="69"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="346" Column="35" TopLine="417"/>
       </Position28>
       <Position29>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="84" Column="57" TopLine="63"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="671" Column="3" TopLine="668"/>
       </Position29>
       <Position30>
-        <Filename Value="uexport.pas"/>
-        <Caret Line="85" Column="82" TopLine="69"/>
+        <Filename Value="uscheduleform.pas"/>
+        <Caret Line="707" Column="27" TopLine="695"/>
       </Position30>
     </JumpHistory>
   </ProjectSession>

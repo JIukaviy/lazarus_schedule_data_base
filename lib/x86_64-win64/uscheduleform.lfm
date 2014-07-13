@@ -1,7 +1,7 @@
 object ScheduleForm: TScheduleForm
-  Left = 82
+  Left = 42
   Height = 598
-  Top = 289
+  Top = 148
   Width = 1000
   Caption = 'Расписание'
   ClientHeight = 598
@@ -403,13 +403,13 @@ object ScheduleForm: TScheduleForm
       OnClick = RefreshButtonClick
       TabOrder = 3
     end
-    object Button1: TButton
-      Left = 456
+    object ButtonExport: TButton
+      Left = 488
       Height = 34
-      Top = 8
+      Top = 6
       Width = 72
-      Caption = 'Button1'
-      OnClick = Button1Click
+      Caption = 'Экспорт'
+      OnClick = ButtonExportClick
       TabOrder = 4
     end
   end

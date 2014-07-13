@@ -12,7 +12,7 @@ type
   { TScheduleConflictsForm }
 
   TScheduleConflictsForm = class(TForm)
-    TreeView1: TTreeView;
+    ConflictsTreeView: TTreeView;
   private
     { private declarations }
   public
