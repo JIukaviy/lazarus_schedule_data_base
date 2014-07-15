@@ -1,7 +1,7 @@
 object ScheduleForm: TScheduleForm
-  Left = 42
+  Left = 704
   Height = 598
-  Top = 148
+  Top = 282
   Width = 1000
   Caption = 'Расписание'
   ClientHeight = 598
