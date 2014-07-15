@@ -7,21 +7,23 @@ interface
 uses
   Classes, SysUtils, IBConnection, sqldb, FileUtil, Forms, Controls,
   Graphics, Dialogs, Grids, DbCtrls, Menus, StdCtrls, umetadata, UTableViewer, UDBData,
-  UScheduleForm;
+  UScheduleForm, USchConflictsForm;
 
 type
 
   { TMainForm }
 
   TMainForm = class(TForm)
-    Button1: TButton;
+    ScheduleButton: TButton;
+    ConflictsButton: TButton;
     MainMenu: TMainMenu;
     MenuFile: TMenuItem;
     MenuHelp: TMenuItem;
     MenuExit: TMenuItem;
     MenuAbout: TMenuItem;
     MenuTables: TMenuItem;
-    procedure Button1Click(Sender: TObject);
+    procedure ScheduleButtonClick(Sender: TObject);
+    procedure ConflictsButtonClick(Sender: TObject);
     procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure FormCreate(Sender: TObject);
     procedure InitMenu();
@@ -56,9 +58,14 @@ begin
   end;
 end;
 
-procedure TMainForm.Button1Click(Sender: TObject);
+procedure TMainForm.ScheduleButtonClick(Sender: TObject);
 begin
   ScheduleForm.Show;
+end;
+
+procedure TMainForm.ConflictsButtonClick(Sender: TObject);
+begin
+  ScheduleConflictsForm.Show();
 end;
 
 procedure TMainForm.InitMenu();

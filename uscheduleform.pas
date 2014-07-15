@@ -8,7 +8,7 @@ uses
   Classes, SysUtils, sqldb, mysql55conn, db, FileUtil, Forms, Controls,
   Graphics, Dialogs, Grids, DbCtrls, StdCtrls, ExtCtrls, Buttons, Math, UDBData,
   umetadata, UFilters, LCLIntf, LCLProc, ComCtrls, EditBtn,
-  UExpandPanel, uanimatedgrid, USQLQueryCreator, UEditForm;
+  UExpandPanel, uanimatedgrid, USQLQueryCreator, UEditForm, USchConflicts;
 
 type
 
@@ -235,7 +235,7 @@ var
   ElementHeight: Integer;
 
 const
-  RowHeight = 20;
+  RowHeight = 18;
   ColCaptionsHeight = 22;
 
 function InRect(aPoint: TPoint; aRect: TRect): boolean;
@@ -339,7 +339,7 @@ begin
   Grid := TAnimatedGrid.Create(Self);
   with Grid do begin
     Parent := Self;
-    Options := [goRowSizing, goHorzLine, goVertLine];
+    Options := [goRowSizing, goHorzLine, goVertLine, goRelaxedRowSelect];
     Top := 10;
     Align := alClient;
     AnchorToNeighbour(akTop, 0, MenuPanel);
@@ -440,6 +440,7 @@ begin
   FillItems();
   Grid.Invalidate();
   FilterPanel.Close();
+  Conflicts.UpdateConflicts();
   SetDataIsActual();
 end;
 
@@ -901,19 +902,21 @@ end;
 
 procedure TScheduleItem.Draw(aCanvas: TCanvas);
 const
-  CellHeight = 20;
   LeftSpace = 5;
+  TopSpace = 5;
+  Space = 5;
 var
   i, CurrHeight: Integer;
 begin
-  CurrHeight := 0;
-  aCanvas.Pen.Color := clBlack;
+  CurrHeight := TopSpace;
   for i := 0 to High(Fields) do
     if VisibleColIDs^[i] then begin
       aCanvas.TextOut(BorderRect.Left + LeftSpace, BorderRect.Top + CurrHeight, Columns[i].Caption + ': ' + Fields[i]);
-      CurrHeight += CellHeight;
+      CurrHeight += RowHeight;
     end;
   aCanvas.Pen.Color := clGray;
+  if Conflicts.IsConflict(ItemID) then
+    ScheduleForm.ImageList.Draw(aCanvas, BorderRect.Right - 30, BorderRect.Bottom - 30, 1, true);
   aCanvas.Line(BorderRect.Left + LeftSpace, BorderRect.Top + CurrHeight, BorderRect.Right - LeftSpace, BorderRect.Top + CurrHeight);
 end;
 

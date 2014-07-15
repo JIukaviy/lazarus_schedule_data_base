@@ -21,15 +21,32 @@ var
   DBConnection: TIBConnection;
 
 implementation
-uses UMain;
 
 procedure InitDataSource(aDataSource: TDataSource; aSQLQuery: TSQLQuery);
 begin
   aDataSource.DataSet := aSQLQuery;
 end;
 
+procedure InitUnit();
+begin
+  SQLTransaction := TSQLTransaction.Create(nil);
+
+  DBConnection := TIBConnection.Create(nil);
+  with DBConnection do begin
+    DatabaseName := cDatabaseName;
+    HostName := cHostName;
+    Password := cPassword;
+    UserName := cUserName;
+    Transaction := SQLTransaction;
+  end;
+
+  SQLTransaction.Active := true;
+end;
+
 procedure InitSQLQuery(aSQLQuery: TSQLQuery);
 begin
+  if DBConnection = nil then
+    InitUnit();
   with aSQLQuery do begin
     DataBase := DBConnection;
     Transaction := SQLTransaction;
@@ -41,23 +58,6 @@ begin
   InitSQLQuery(aSQLQuery);
   InitDataSource(aDataSource, aSQLQuery);
 end;
-
-initialization
-  SQLTransaction := TSQLTransaction.Create(MainForm);
-
-  DBConnection := TIBConnection.Create(MainForm);
-  with DBConnection do begin
-    DatabaseName := cDatabaseName;
-    HostName := cHostName;
-    Password := cPassword;
-    UserName := cUserName;
-    Transaction := SQLTransaction;
-  end;
-
-  with SQLTransaction do begin
-    //Database := DBConnection;
-    Active := true;
-  end;
 
 finalization
 SQLTransaction.Active:= False;

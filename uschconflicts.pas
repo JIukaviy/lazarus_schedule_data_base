@@ -16,7 +16,7 @@ type
     Conf_ID: Integer;
     Item_ID: Integer;
     Group_ID: Integer;
-    Name: String;
+    ConflictCol: String;
   end;
 
   TConflictItems = array of TConflictItem;
@@ -28,6 +28,7 @@ type
 
   TConflictGroup = object
     Members: array of Integer;
+    Name: String;
     ID: Integer;
     procedure Add(var Conf: TConflictItem);
     procedure Add(aID: Integer);
@@ -110,6 +111,8 @@ type
     function GetConfsByItemID(aID: Integer): TConflictItems;
     function GetConfsByConf(Conf: TConflictItem): TConflictItems;
     function GetConfsByTypeID(aID: Integer): TGroupedConflictItems;
+    function GetConfTypeInfos(): TConflictTypeInfos;
+    function IsConflict(aID: Integer): boolean;
   end;
 
   procedure QSort(var a: TConflictItems; l, r: Integer);
@@ -121,19 +124,26 @@ implementation
 
   function FindConfID(a: TConflictItems; ID: Integer): Integer;
   var
-    l, r: Integer;
+    l, r, mid: Integer;
   begin
     Result := -1;
     l := 0;
     r := High(a);
+
+    if r < 0 then
+      Exit(-1);
+
     while (l < r) do begin
-      if (ID > a[(l + r) div 2].Item_ID) then
-        l := (l + r) div 2 + 1
-      else if (ID < a[(l + r) div 2].Item_ID) then
-        r := (l + r) div 2
+      mid := (l + r) div 2;
+      if (ID <= a[mid].Item_ID) then
+        r := mid
       else
-        Exit((l + r) div 2);
+        l := mid + 1
     end;
+
+    if (a[l].Item_ID = ID) then
+      Result := l;
+
   end;
 
   function FindConfItems(a: TConflictItems; ID: Integer): TConflictItems;
@@ -169,9 +179,9 @@ var
   function cmp(a, b: TConflictItem): boolean;
   begin
     if a.Item_ID = b.Item_ID then
-      Exit(a.ConfType_ID > b.ConfType_ID)
+      Exit(a.ConfType_ID < b.ConfType_ID)
     else
-      Exit(a.Item_ID > b.ConfType_ID);
+      Exit(a.Item_ID < b.Item_ID);
   end;
 
   procedure swap(var a, b: TConflictItem);
@@ -184,22 +194,21 @@ var
   end;
 
 begin
-  x := a[(l + r) div 2];
+  x := a[random(r-l+1)+l];
   i := l;
   j := r;
-  while i < j do begin
+  repeat
     while cmp(a[i], x) do Inc(i);
     while cmp(x, a[j]) do Dec(j);
     if i <= j then begin
-      swap(a[i], a[j]);
+      if cmp(a[j], a[i]) then
+        swap(a[i], a[j]);
       Inc(i);
       Dec(j);
     end;
-  end;
-  if l < j then
-    qsort(a, l, j);
-  if i < r then
-    qsort(a, i, r);
+  until i >= j;
+  if l < j then qsort(a, l, j);
+  if i < r then qsort(a, i, r);
 end;
 
 { TConfGroupsList }
@@ -248,7 +257,7 @@ begin
     for j := 0 to High(TempConfList) do begin
       FConflicts[ResLen + j] := TempConfList[j];
       FConflicts[ResLen + j].ConfType_ID := i;
-      FConflicts[ResLen + j].Name := FConfTypeInfos[j].Name;
+      //FConflicts[ResLen + j].Name := FConfTypeInfos[j].Name;
     end;
   end;
   QSort(FConflicts, 0, High(FConflicts));
@@ -257,12 +266,14 @@ begin
 
   for i := 0 to High(FConflicts) do begin
     with FConflicts[i] do begin
+      //ShowMessage(IntToStr(High(FGroups[ConfType_ID].Groups)) + ':' + IntToStr(Group_ID));
       if High(FGroups[ConfType_ID].Groups) < Group_ID then
         SetLength(FGroups[ConfType_ID].Groups, Group_ID + 1);
       FGroups[ConfType_ID].Groups[Group_ID].Add(i);
       Conf_ID := i;
     end;
   end;
+
 
   {res := '';
   for i := 0 to High(FGroups) do begin
@@ -325,6 +336,16 @@ begin
   end;
 end;
 
+function TConflicts.GetConfTypeInfos: TConflictTypeInfos;
+begin
+  Result := FConfTypeInfos;
+end;
+
+function TConflicts.IsConflict(aID: Integer): boolean;
+begin
+  Result := FindConfID(FConflicts, aID) >= 0;
+end;
+
 { TConflictsTypeList }
 
 procedure TConflictsTypeList.Add(aConf: TBaseConflict);
@@ -378,16 +399,19 @@ begin
     Open;
 
     while not EOF do begin
-      if (FindConfID(Res, Fields[0].AsInteger) >= 0) then
+      if (FindConfID(Res, Fields[0].AsInteger) >= 0) then begin
+        Next;
         continue;
+      end;
 
       SetLength(Res, Length(Res) + 1);
 
       with Res[High(Res)] do begin
         Item_ID := Fields[0].AsInteger;
-        ShowMessage(IntToStr(Item_ID));
         Group_ID := -1;
       end;
+
+      //ShowMessage(IntToStr(Fields[0].AsInteger));
 
       Conf_ID := FindConfID(Res, Fields[1].AsInteger);
 
@@ -397,7 +421,7 @@ begin
             Res[High(Res)].Group_ID := CurrGroupID;
             CurrGroupID += 1;
          end else begin
-            Res[High(Res)].Group_ID := Res[High(Res)].Group_ID;
+            Res[High(Res)].Group_ID := Res[Conf_ID].Group_ID;
          end;
       end;
 

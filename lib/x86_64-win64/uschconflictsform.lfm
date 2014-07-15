@@ -7,12 +7,27 @@ object ScheduleConflictsForm: TScheduleConflictsForm
   ClientHeight = 488
   ClientWidth = 493
   LCLVersion = '1.0.12.0'
-  object ConflictsTreeView: TTreeView
-    Left = 0
-    Height = 488
-    Top = 0
+  object ConfsTreeView: TTreeView
+    Left = -1
+    Height = 456
+    Top = 32
     Width = 494
     DefaultItemHeight = 18
+    ReadOnly = True
     TabOrder = 0
+    Options = [tvoAutoItemHeight, tvoHideSelection, tvoKeepCollapsedNodes, tvoReadOnly, tvoShowButtons, tvoShowLines, tvoShowRoot, tvoToolTips, tvoNoDoubleClickExpand, tvoThemedDraw]
+    Items.Data = {
+      F9FFFFFF020001000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000
+      00000012000000D09AD0BED0BDD184D0BBD0B8D0BAD182D18B
+    }
+  end
+  object RefreshButton: TButton
+    Left = 8
+    Height = 29
+    Top = 3
+    Width = 96
+    Caption = 'Обновить'
+    OnClick = RefreshButtonClick
+    TabOrder = 1
   end
 end
